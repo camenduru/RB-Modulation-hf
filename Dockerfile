@@ -4,6 +4,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     python3.9 \
     python3-pip \
+    python3-venv \
     libssl-dev \
     libffi-dev \
     git \
@@ -13,6 +14,9 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Create a symlink for python
+RUN ln -s /usr/bin/python3 /usr/bin/python
 
 # Create a non-root user
 RUN useradd -m -u 1000 user
@@ -28,12 +32,9 @@ RUN git clone https://github.com/google/RB-Modulation.git $HOME/app
 # Set the working directory
 WORKDIR $HOME/app
 
-# Install any required Python packages
-# Uncomment and modify the following line if there's a requirements.txt file
-# RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Gradio
-RUN pip install --no-cache-dir gradio
+# Upgrade pip and install Gradio
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install --no-cache-dir gradio
 
 # Command to run the Gradio app
-CMD ["python", "app.py"]
+CMD ["python3", "app.py"]
