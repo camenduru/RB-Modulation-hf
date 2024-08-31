@@ -1,7 +1,6 @@
 import sys
 import os
 from pathlib import Path
-import gc
 
 # Add the StableCascade and CSD directories to the Python path
 app_dir = Path(__file__).parent
@@ -28,29 +27,12 @@ from gdf.schedulers import CosineSchedule
 from gdf import VPScaler, CosineTNoiseCond, DDPMSampler, P2LossWeight, AdaptiveLossWeight
 from gdf.targets import EpsilonTarget
 
-# Enable mixed precision
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
-
 # Device configuration
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Flag for low VRAM usage
-low_vram = True  # Set to True to enable low VRAM optimizations
-
-# Function to clear GPU cache
-def clear_gpu_cache():
-    torch.cuda.empty_cache()
-    gc.collect()
-
-# Function to move model to CPU
-def to_cpu(model):
-    return model.cpu()
-
-# Function to move model to GPU
-def to_gpu(model):
-    return model.cuda()
+low_vram = False
 
 # Function definition for low VRAM usage
 if low_vram:
@@ -71,7 +53,7 @@ if low_vram:
                 print(f"Change device of '{attr_name}' to {device}")
                 attr_value.to(device)
         
-        clear_gpu_cache()
+        torch.cuda.empty_cache()
 
 # Stage C model configuration
 config_file = 'third_party/StableCascade/configs/inference/stage_c_3b.yaml'
@@ -126,7 +108,7 @@ models_b.generator.bfloat16().eval().requires_grad_(False)
 # Off-load old generator (low VRAM mode)
 if low_vram:
     models.generator.to("cpu")
-    clear_gpu_cache()
+    torch.cuda.empty_cache()
 
 # Load and configure new generator
 generator_rbm = StageCRBM()
@@ -149,7 +131,6 @@ models_rbm = core.Models(
 models_rbm.generator.eval().requires_grad_(False)
 
 def infer(style_description, ref_style_file, caption):
-    clear_gpu_cache()  # Clear cache before inference
 
     height=1024
     width=1024
@@ -185,22 +166,19 @@ def infer(style_description, ref_style_file, caption):
         models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
 
     # Stage C reverse process.
-    with torch.cuda.amp.autocast():  # Use mixed precision
-        sampling_c = extras.gdf.sample(
-            models_rbm.generator, conditions, stage_c_latent_shape,
-            unconditions, device=device,
-            **extras.sampling_configs,
-            x0_style_forward=x0_style_forward,
-            apply_pushforward=False, tau_pushforward=8,
-            num_iter=3, eta=0.1, tau=20, eval_csd=True,
-            extras=extras, models=models_rbm,
-            lam_style=1, lam_txt_alignment=1.0,
-            use_ddim_sampler=True,
-        )
-        for (sampled_c, _, _) in tqdm(sampling_c, total=extras.sampling_configs['timesteps']):
-            sampled_c = sampled_c
-
-    clear_gpu_cache()  # Clear cache between stages
+    sampling_c = extras.gdf.sample(
+        models_rbm.generator, conditions, stage_c_latent_shape,
+        unconditions, device=device,
+        **extras.sampling_configs,
+        x0_style_forward=x0_style_forward,
+        apply_pushforward=False, tau_pushforward=8,
+        num_iter=3, eta=0.1, tau=20, eval_csd=True,
+        extras=extras, models=models_rbm,
+        lam_style=1, lam_txt_alignment=1.0,
+        use_ddim_sampler=True,
+    )
+    for (sampled_c, _, _) in tqdm(sampling_c, total=extras.sampling_configs['timesteps']):
+        sampled_c = sampled_c
 
     # Stage B reverse process.
     with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.bfloat16):                
@@ -216,21 +194,14 @@ def infer(style_description, ref_style_file, caption):
         sampled = models_b.stage_a.decode(sampled_b).float()
 
     sampled = torch.cat([
-        torch.nn.functional.interpolate(ref_style.cpu(), size=(height, width)),
+        torch.nn.functional.interpolate(ref_style.cpu(), size=height),
         sampled.cpu(),
-    ], dim=0)
+        ],
+        dim=0)
 
-    # Remove the batch dimension and keep only the generated image
-    sampled = sampled[1]  # This selects the generated image, discarding the reference style image
-
-    # Ensure the tensor is in [C, H, W] format
-    if sampled.dim() == 3 and sampled.shape[0] == 3:
-        sampled_image = T.ToPILImage()(sampled)  # Convert tensor to PIL image
-        sampled_image.save(output_file)  # Save the image as a PNG
-    else:
-        raise ValueError(f"Expected tensor of shape [3, H, W] but got {sampled.shape}")
-
-    clear_gpu_cache()  # Clear cache after inference
+    # Save the sampled image to a file
+    sampled_image = T.ToPILImage()(sampled.squeeze(0))  # Convert tensor to PIL image
+    sampled_image.save(output_file)  # Save the image
 
     return output_file  # Return the path to the saved image
 
