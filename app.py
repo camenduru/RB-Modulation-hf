@@ -149,6 +149,10 @@ models_rbm = core.Models(
 models_rbm.generator.eval().requires_grad_(False)
 
 def infer(style_description, ref_style_file, caption):
+    # Ensure all models are moved back to the correct device
+    core_b.generator.to(device)
+    models_rbm.generator.to(device)
+    
     clear_gpu_cache()  # Clear cache before inference
 
     height=1024
@@ -181,10 +185,10 @@ def infer(style_description, ref_style_file, caption):
     unconditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=True)
 
     if low_vram:
-        # The sampling process uses more vram, so we offload everything except two modules to the cpu.
+        # Offload non-essential models to CPU for memory savings
         models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
 
-    # Stage C reverse process.
+    # Stage C reverse process
     with torch.cuda.amp.autocast():  # Use mixed precision
         sampling_c = extras.gdf.sample(
             models_rbm.generator, conditions, stage_c_latent_shape,
@@ -202,7 +206,10 @@ def infer(style_description, ref_style_file, caption):
 
     clear_gpu_cache()  # Clear cache between stages
 
-    # Stage B reverse process.
+    # Ensure all models are on the right device again
+    models_b.generator.to(device)
+    
+    # Stage B reverse process
     with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.bfloat16):                
         conditions_b['effnet'] = sampled_c
         unconditions_b['effnet'] = torch.zeros_like(sampled_c)
@@ -215,6 +222,7 @@ def infer(style_description, ref_style_file, caption):
             sampled_b = sampled_b
         sampled = models_b.stage_a.decode(sampled_b).float()
 
+    # Post-process and save the image
     sampled = torch.cat([
         torch.nn.functional.interpolate(ref_style.cpu(), size=(height, width)),
         sampled.cpu(),
@@ -233,6 +241,7 @@ def infer(style_description, ref_style_file, caption):
     clear_gpu_cache()  # Clear cache after inference
 
     return output_file  # Return the path to the saved image
+
 
 import gradio as gr
 
