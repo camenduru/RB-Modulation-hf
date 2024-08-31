@@ -24,7 +24,8 @@ RUN useradd -m -u 1000 user
 USER user
 
 ENV HOME=/home/user \
-    PATH=/home/user/.local/bin:$PATH
+    PATH=/home/user/.local/bin:$PATH \
+    SYSTEM=spaces
 
 # Clone the RB-Modulation repository
 RUN git clone https://github.com/google/RB-Modulation.git $HOME/app
