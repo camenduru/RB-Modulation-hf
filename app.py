@@ -149,101 +149,110 @@ models_rbm = core.Models(
 models_rbm.generator.eval().requires_grad_(False)
 
 def infer(style_description, ref_style_file, caption):
-    try:
-        # Ensure all models are moved back to the correct device
-        models_rbm.generator.to(device)
-        models_b.generator.to(device)
-        
-        clear_gpu_cache()  # Clear cache before inference
+    # Move models to the correct device
+    models_rbm.effnet.to(device)
+    models_rbm.generator.to(device)
+    if low_vram:
+        models_rbm.previewer.to(device)
 
-        height = 1024
-        width = 1024
-        batch_size = 1
-        output_file = 'output.png'
-        
-        stage_c_latent_shape, stage_b_latent_shape = calculate_latent_sizes(height, width, batch_size=batch_size)
+    # Also, revalidate data types and devices for key tensors
+    def check_and_move(tensor):
+        if tensor is not None and tensor.device != device:
+            return tensor.to(device)
+        return tensor
+    
+    clear_gpu_cache()  # Clear cache before inference
 
-        extras.sampling_configs['cfg'] = 4
-        extras.sampling_configs['shift'] = 2
-        extras.sampling_configs['timesteps'] = 20
-        extras.sampling_configs['t_start'] = 1.0
+    height = 1024
+    width = 1024
+    batch_size = 1
+    output_file = 'output.png'
 
-        extras_b.sampling_configs['cfg'] = 1.1
-        extras_b.sampling_configs['shift'] = 1
-        extras_b.sampling_configs['timesteps'] = 10
-        extras_b.sampling_configs['t_start'] = 1.0
+    stage_c_latent_shape, stage_b_latent_shape = calculate_latent_sizes(height, width, batch_size=batch_size)
 
-        ref_style = resize_image(PIL.Image.open(ref_style_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
+    extras.sampling_configs['cfg'] = 4
+    extras.sampling_configs['shift'] = 2
+    extras.sampling_configs['timesteps'] = 20
+    extras.sampling_configs['t_start'] = 1.0
 
-        batch = {'captions': [caption] * batch_size}
-        batch['style'] = ref_style
+    extras_b.sampling_configs['cfg'] = 1.1
+    extras_b.sampling_configs['shift'] = 1
+    extras_b.sampling_configs['timesteps'] = 10
+    extras_b.sampling_configs['t_start'] = 1.0
 
-        x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style.to(device)))
+    # Load and preprocess the reference style image
+    ref_style = resize_image(PIL.Image.open(ref_style_file).convert("RGB"))
+    ref_style = ref_style.unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
 
-        conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_style=True, eval_csd=False) 
-        unconditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=True, eval_image_embeds=False)    
-        conditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=False)
-        unconditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=True)
+    batch = {'captions': [caption] * batch_size}
+    batch['style'] = ref_style
 
-        if low_vram:
-            # Offload non-essential models to CPU for memory savings
-            models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
+    x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style.to(device)))
 
-        # Stage C reverse process
-        with torch.cuda.amp.autocast():  # Use mixed precision
-            sampling_c = extras.gdf.sample(
-                models_rbm.generator, conditions, stage_c_latent_shape,
-                unconditions, device=device,
-                **extras.sampling_configs,
-                x0_style_forward=x0_style_forward,
-                apply_pushforward=False, tau_pushforward=8,
-                num_iter=3, eta=0.1, tau=20, eval_csd=True,
-                extras=extras, models=models_rbm,
-                lam_style=1, lam_txt_alignment=1.0,
-                use_ddim_sampler=True,
-            )
-            for (sampled_c, _, _) in tqdm(sampling_c, total=extras.sampling_configs['timesteps']):
-                sampled_c = sampled_c
+    conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_style=True, eval_csd=False)
+    unconditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=True, eval_image_embeds=False)
+    conditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=False)
+    unconditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=True)
 
-        clear_gpu_cache()  # Clear cache between stages
+    if low_vram:
+        # Offload non-essential models to CPU for memory savings
+        models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
 
-        # Ensure all models are on the right device again
-        models_b.generator.to(device)
-        
-        # Stage B reverse process
-        with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.bfloat16):                
-            conditions_b['effnet'] = sampled_c
-            unconditions_b['effnet'] = torch.zeros_like(sampled_c)
-            
-            sampling_b = extras_b.gdf.sample(
-                models_b.generator, conditions_b, stage_b_latent_shape,
-                unconditions_b, device=device, **extras_b.sampling_configs,
-            )
-            for (sampled_b, _, _) in tqdm(sampling_b, total=extras_b.sampling_configs['timesteps']):
-                sampled_b = sampled_b
-            sampled = models_b.stage_a.decode(sampled_b).float()
+    # Stage C reverse process
+    with torch.cuda.amp.autocast():
+        sampling_c = extras.gdf.sample(
+            models_rbm.generator, conditions, stage_c_latent_shape,
+            unconditions, device=device,
+            **extras.sampling_configs,
+            x0_style_forward=x0_style_forward,
+            apply_pushforward=False, tau_pushforward=8,
+            num_iter=3, eta=0.1, tau=20, eval_csd=True,
+            extras=extras, models=models_rbm,
+            lam_style=1, lam_txt_alignment=1.0,
+            use_ddim_sampler=True,
+        )
+        for (sampled_c, _, _) in tqdm(sampling_c, total=extras.sampling_configs['timesteps']):
+            sampled_c = sampled_c
 
-        # Post-process and save the image
-        sampled = sampled.cpu()  # Move to CPU before processing
+    clear_gpu_cache()  # Clear cache between stages
 
-        # Ensure the tensor is in [C, H, W] format
-        if sampled.dim() == 4 and sampled.size(0) == 1:
-            sampled = sampled.squeeze(0)
-        
-        if sampled.dim() == 3 and sampled.shape[0] == 3:
-            sampled_image = T.ToPILImage()(sampled)  # Convert tensor to PIL image
-            sampled_image.save(output_file)  # Save the image as a PNG
-        else:
-            raise ValueError(f"Expected tensor of shape [3, H, W] but got {sampled.shape}")
+    # Ensure all models are on the right device again
+    models_b.generator.to(device)
+    models_b.stage_a.to(device)
 
-    except Exception as e:
-        print(f"An error occurred during inference: {str(e)}")
-        return None
+    # Stage B reverse process
+    with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.bfloat16):
+        conditions_b['effnet'] = sampled_c.to(device)
+        unconditions_b['effnet'] = torch.zeros_like(sampled_c).to(device)
 
-    finally:
-        clear_gpu_cache()  # Always clear cache after inference
+        sampling_b = extras_b.gdf.sample(
+            models_b.generator, conditions_b, stage_b_latent_shape,
+            unconditions_b, device=device, **extras_b.sampling_configs,
+        )
+        for (sampled_b, _, _) in tqdm(sampling_b, total=extras_b.sampling_configs['timesteps']):
+            sampled_b = sampled_b
+        sampled = models_b.stage_a.decode(sampled_b).float().to(device)
+
+    # Post-process and save the image
+    sampled = torch.cat([
+        torch.nn.functional.interpolate(ref_style.cpu(), size=(height, width)),
+        sampled.cpu(),
+    ], dim=0)
+
+    # Remove the batch dimension and keep only the generated image
+    sampled = sampled[1]  # This selects the generated image, discarding the reference style image
+
+    # Ensure the tensor is in [C, H, W] format
+    if sampled.dim() == 3 and sampled.shape[0] == 3:
+        sampled_image = T.ToPILImage()(sampled)  # Convert tensor to PIL image
+        sampled_image.save(output_file)  # Save the image as a PNG
+    else:
+        raise ValueError(f"Expected tensor of shape [3, H, W] but got {sampled.shape}")
+
+    clear_gpu_cache()  # Clear cache after inference
 
     return output_file  # Return the path to the saved image
+
 
 
 import gradio as gr
