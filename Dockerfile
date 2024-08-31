@@ -1,4 +1,5 @@
 FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
     build-essential \
