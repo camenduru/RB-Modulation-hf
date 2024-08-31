@@ -25,6 +25,7 @@ USER user
 
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
+    PYTHONPATH=$HOME/app \
     SYSTEM=spaces
 
 # Clone the RB-Modulation repository
