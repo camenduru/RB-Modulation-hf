@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
+FROM pytorch/pytorch:2.1.2-cuda11.8-cudnn8-devel
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
@@ -27,7 +27,17 @@ USER user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
     PYTHONPATH=$HOME/app \
-    SYSTEM=spaces
+    PYTHONUNBUFFERED=1 \
+	GRADIO_ALLOW_FLAGGING=never \
+	GRADIO_NUM_PORTS=1 \
+	GRADIO_SERVER_NAME=0.0.0.0 \
+	GRADIO_THEME=huggingface \
+    GRADIO_SHARE=False \
+	SYSTEM=spaces
+
+# Set the environment variable to specify the GPU device
+ENV CUDA_DEVICE_ORDER=PCI_BUS_ID
+ENV CUDA_VISIBLE_DEVICES=0
 
 # Clone the RB-Modulation repository
 RUN git clone https://github.com/google/RB-Modulation.git $HOME/app
