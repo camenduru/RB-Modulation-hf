@@ -72,9 +72,17 @@ RUN cd third_party/StableCascade && \
 RUN pip install --no-cache-dir gdown
 
 # Download pre-trained CSD weights
-RUN gdown https://drive.google.com/uc?id=1FX0xs8p-C7Ob-h5Y4cUhTeOepHzXv_46 -O third_party/CSD/checkpoint.pth
+RUN gdown https://drive.google.com/uc?id=1FX0xs8p-C7Ob-h5Y4cUhTeOepHzXv_46 -O $HOME/app/third_party/CSD/checkpoint.pth
+
+# Verify the download
+RUN if [ ! -f "$HOME/app/third_party/CSD/checkpoint.pth" ]; then \
+        echo "CSD checkpoint file not found" && exit 1; \
+    fi
 
 RUN ls -R $HOME/app/third_party/CSD
+
+# Ensure CSD is a proper Python package
+RUN touch $HOME/app/third_party/CSD/__init__.py
 
 # Install LangSAM and its dependencies
 RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDINO.git && \
@@ -86,6 +94,9 @@ RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDIN
 
 # Upgrade pip and install Gradio
 RUN python3 -m pip install --no-cache-dir gradio
+
+# Verify CSD module can be imported
+RUN python -c "import CSD; print('CSD module successfully imported')"
 
 # Copy the app.py file from the host to the container
 COPY --chown=user:user app.py .
