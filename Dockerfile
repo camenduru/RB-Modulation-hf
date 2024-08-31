@@ -28,7 +28,7 @@ USER user
 
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
-    PYTHONPATH=$HOME/app \
+    ENV PYTHONPATH=$HOME/app:$HOME/app/third_party/StableCascade:$HOME/app/third_party/CSD:$PYTHONPATH
     PYTHONUNBUFFERED=1 \
 	GRADIO_ALLOW_FLAGGING=never \
 	GRADIO_NUM_PORTS=1 \
@@ -45,6 +45,12 @@ ENV CUDA_VISIBLE_DEVICES=0
 
 # Clone the RB-Modulation repository
 RUN git clone https://github.com/google/RB-Modulation.git $HOME/app
+
+# Ensure CSD directory exists and is in the correct location
+RUN if [ ! -d "$HOME/app/third_party/CSD" ]; then \
+        echo "CSD directory not found in the expected location" && \
+        exit 1; \
+    fi
 
 # Set the working directory
 WORKDIR $HOME/app
@@ -67,6 +73,8 @@ RUN pip install --no-cache-dir gdown
 
 # Download pre-trained CSD weights
 RUN gdown https://drive.google.com/uc?id=1FX0xs8p-C7Ob-h5Y4cUhTeOepHzXv_46 -O third_party/CSD/checkpoint.pth
+
+RUN ls -R $HOME/app/third_party/CSD
 
 # Install LangSAM and its dependencies
 RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDINO.git && \
