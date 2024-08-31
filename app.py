@@ -6,6 +6,10 @@ from pathlib import Path
 stable_cascade_path = Path(__file__).parent / "third_party" / "StableCascade"
 sys.path.append(str(stable_cascade_path))
 
+# Add the CSD directory to the Python path
+csd_path = Path(__file__).parent / "third_party" / "CSD"
+sys.path.append(str(csd_path))
+
 import yaml
 import torch
 from tqdm import tqdm
