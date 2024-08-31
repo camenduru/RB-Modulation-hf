@@ -26,7 +26,7 @@ USER user
 
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
-    PYTHONPATH=$HOME/app \
+    PYTHONPATH=$HOME/app:$HOME/app/third_party/StableCascade:$PYTHONPATH \
     PYTHONUNBUFFERED=1 \
 	GRADIO_ALLOW_FLAGGING=never \
 	GRADIO_NUM_PORTS=1 \
@@ -45,9 +45,27 @@ RUN git clone https://github.com/google/RB-Modulation.git $HOME/app
 # Set the working directory
 WORKDIR $HOME/app
 
+RUN python3 -m pip install --upgrade pip
+
+# Download pretrained models
+RUN cd third_party/StableCascade/models && \
+    bash download_models.sh essential big-big bfloat16 && \
+    cd ../../..
+
+# Install StableCascade requirements
+RUN cd third_party/StableCascade && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir jupyter notebook opencv-python matplotlib ftfy && \
+    cd ../..
+
+# Install gdown for Google Drive downloads
+RUN pip install --no-cache-dir gdown
+
+# Download pre-trained CSD weights
+RUN gdown https://drive.google.com/uc?id=1FX0xs8p-C7Ob-h5Y4cUhTeOepHzXv_46 -O third_party/CSD/checkpoint.pth
+
 # Upgrade pip and install Gradio
-RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install --no-cache-dir gradio
+RUN python3 -m pip install --no-cache-dir gradio
 
 # Copy the app.py file from the host to the container
 COPY --chown=user:user app.py .
