@@ -149,25 +149,13 @@ models_rbm = core.Models(
 models_rbm.generator.eval().requires_grad_(False)
 
 def infer(style_description, ref_style_file, caption):
-    # Move models to the correct device
-    models_rbm.effnet.to(device)
-    models_rbm.generator.to(device)
-    if low_vram:
-        models_rbm.previewer.to(device)
-
-    # Also, revalidate data types and devices for key tensors
-    def check_and_move(tensor):
-        if tensor is not None and tensor.device != device:
-            return tensor.to(device)
-        return tensor
-    
     clear_gpu_cache()  # Clear cache before inference
 
-    height = 1024
-    width = 1024
-    batch_size = 1
-    output_file = 'output.png'
-
+    height=1024
+    width=1024
+    batch_size=1
+    output_file='output.png'
+    
     stage_c_latent_shape, stage_b_latent_shape = calculate_latent_sizes(height, width, batch_size=batch_size)
 
     extras.sampling_configs['cfg'] = 4
@@ -180,26 +168,24 @@ def infer(style_description, ref_style_file, caption):
     extras_b.sampling_configs['timesteps'] = 10
     extras_b.sampling_configs['t_start'] = 1.0
 
-    # Load and preprocess the reference style image
-    ref_style = resize_image(PIL.Image.open(ref_style_file).convert("RGB"))
-    ref_style = ref_style.unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
+    ref_style = resize_image(PIL.Image.open(ref_style_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
 
     batch = {'captions': [caption] * batch_size}
     batch['style'] = ref_style
 
     x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style.to(device)))
 
-    conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_style=True, eval_csd=False)
-    unconditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=True, eval_image_embeds=False)
+    conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_style=True, eval_csd=False) 
+    unconditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=True, eval_image_embeds=False)    
     conditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=False)
     unconditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=True)
 
     if low_vram:
-        # Offload non-essential models to CPU for memory savings
+        # The sampling process uses more vram, so we offload everything except two modules to the cpu.
         models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
 
-    # Stage C reverse process
-    with torch.cuda.amp.autocast():
+    # Stage C reverse process.
+    with torch.cuda.amp.autocast():  # Use mixed precision
         sampling_c = extras.gdf.sample(
             models_rbm.generator, conditions, stage_c_latent_shape,
             unconditions, device=device,
@@ -216,24 +202,19 @@ def infer(style_description, ref_style_file, caption):
 
     clear_gpu_cache()  # Clear cache between stages
 
-    # Ensure all models are on the right device again
-    models_b.generator.to(device)
-    models_b.stage_a.to(device)
-
-    # Stage B reverse process
-    with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.bfloat16):
-        conditions_b['effnet'] = sampled_c.to(device)
-        unconditions_b['effnet'] = torch.zeros_like(sampled_c).to(device)
-
+    # Stage B reverse process.
+    with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.bfloat16):                
+        conditions_b['effnet'] = sampled_c
+        unconditions_b['effnet'] = torch.zeros_like(sampled_c)
+        
         sampling_b = extras_b.gdf.sample(
             models_b.generator, conditions_b, stage_b_latent_shape,
             unconditions_b, device=device, **extras_b.sampling_configs,
         )
         for (sampled_b, _, _) in tqdm(sampling_b, total=extras_b.sampling_configs['timesteps']):
             sampled_b = sampled_b
-        sampled = models_b.stage_a.decode(sampled_b).float().to(device)
+        sampled = models_b.stage_a.decode(sampled_b).float()
 
-    # Post-process and save the image
     sampled = torch.cat([
         torch.nn.functional.interpolate(ref_style.cpu(), size=(height, width)),
         sampled.cpu(),
@@ -252,8 +233,6 @@ def infer(style_description, ref_style_file, caption):
     clear_gpu_cache()  # Clear cache after inference
 
     return output_file  # Return the path to the saved image
-
-
 
 import gradio as gr
 
