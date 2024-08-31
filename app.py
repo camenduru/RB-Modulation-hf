@@ -150,9 +150,15 @@ models_rbm.generator.eval().requires_grad_(False)
 
 def infer(style_description, ref_style_file, caption):
     try:
-        # Ensure all models are moved back to the correct device
-        models_rbm.to(device)
-        models_b.to(device)
+        # Instead of trying to move the entire models_rbm object, move individual components
+        models_rbm.effnet.to(device)
+        models_rbm.previewer.to(device)
+        models_rbm.generator.to(device)
+        models_rbm.text_model.to(device)
+        
+        # For models_b, we need to move its components as well
+        models_b.generator.to(device)
+        models_b.stage_a.to(device)
         
         clear_gpu_cache()  # Clear cache before inference
 
