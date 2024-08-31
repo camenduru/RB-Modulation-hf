@@ -28,7 +28,7 @@ USER user
 
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
-    PYTHONPATH=$HOME/app:$HOME/app/third_party/StableCascade:$HOME/app/third_party/CSD:$PYTHONPATH \
+    PYTHONPATH=$HOME/app \
     PYTHONUNBUFFERED=1 \
 	GRADIO_ALLOW_FLAGGING=never \
 	GRADIO_NUM_PORTS=1 \
@@ -79,10 +79,21 @@ RUN if [ ! -f "$HOME/app/third_party/CSD/checkpoint.pth" ]; then \
         echo "CSD checkpoint file not found" && exit 1; \
     fi
 
-RUN ls -R $HOME/app/third_party/CSD
+RUN ls -la $HOME/app/third_party/CSD
 
 # Ensure CSD is a proper Python package
 RUN touch $HOME/app/third_party/CSD/__init__.py
+
+# Update PYTHONPATH
+ENV PYTHONPATH=$HOME/app:$HOME/app/third_party:$PYTHONPATH
+
+# Print Python path
+RUN python -c "import sys; print('\n'.join(sys.path))"
+
+# Verify CSD module can be imported (try different methods)
+RUN python -c "from third_party.CSD import model; print('CSD model successfully imported')" || \
+    python -c "import sys; sys.path.append('/home/user/app/third_party'); from CSD import model; print('CSD model successfully imported')"
+
 
 # Install LangSAM and its dependencies
 RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDINO.git && \
@@ -94,9 +105,6 @@ RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDIN
 
 # Upgrade pip and install Gradio
 RUN python3 -m pip install --no-cache-dir gradio
-
-# Verify CSD module can be imported
-RUN python -c "import CSD; print('CSD module successfully imported')"
 
 # Copy the app.py file from the host to the container
 COPY --chown=user:user app.py .
