@@ -26,7 +26,7 @@ USER user
 
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
-    PYTHONPATH=$HOME/app:$HOME/app/third_party/StableCascade:$PYTHONPATH \
+    PYTHONPATH=$HOME/app \
     PYTHONUNBUFFERED=1 \
 	GRADIO_ALLOW_FLAGGING=never \
 	GRADIO_NUM_PORTS=1 \
