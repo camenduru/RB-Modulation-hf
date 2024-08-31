@@ -135,25 +135,19 @@ def initialize_models():
 
 def infer(style_description, ref_style_file, caption):
     try:
-        # Initialize (or reinitialize) models before each inference
-        initialize_models()
-        
+        # Clear GPU cache before inference
+        clear_gpu_cache()
+
+        # Ensure models are on the correct device
+        models_rbm.to(device)
+        models_b.to(device)
+
         height = 1024
         width = 1024
         batch_size = 1
         output_file = 'output.png'
         
         stage_c_latent_shape, stage_b_latent_shape = calculate_latent_sizes(height, width, batch_size=batch_size)
-
-        extras.sampling_configs['cfg'] = 4
-        extras.sampling_configs['shift'] = 2
-        extras.sampling_configs['timesteps'] = 20
-        extras.sampling_configs['t_start'] = 1.0
-
-        extras_b.sampling_configs['cfg'] = 1.1
-        extras_b.sampling_configs['shift'] = 1
-        extras_b.sampling_configs['timesteps'] = 10
-        extras_b.sampling_configs['t_start'] = 1.0
 
         ref_style = resize_image(PIL.Image.open(ref_style_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
 
@@ -188,6 +182,9 @@ def infer(style_description, ref_style_file, caption):
                 sampled_c = sampled_c
 
         clear_gpu_cache()  # Clear cache between stages
+
+        # Ensure models_b is on the correct device
+        models_b.to(device)
 
         # Stage B reverse process
         with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.bfloat16):                
