@@ -73,7 +73,80 @@ if low_vram:
         
         clear_gpu_cache()
 
-# ... (rest of your setup code remains the same)
+# Stage C model configuration
+config_file = 'third_party/StableCascade/configs/inference/stage_c_3b.yaml'
+with open(config_file, "r", encoding="utf-8") as file:
+    loaded_config = yaml.safe_load(file)
+
+core = WurstCoreCRBM(config_dict=loaded_config, device=device, training=False)
+
+# Stage B model configuration
+config_file_b = 'third_party/StableCascade/configs/inference/stage_b_3b.yaml'
+with open(config_file_b, "r", encoding="utf-8") as file:
+    config_file_b = yaml.safe_load(file)
+    
+core_b = WurstCoreB(config_dict=config_file_b, device=device, training=False)
+
+# Setup extras and models for Stage C
+extras = core.setup_extras_pre()
+
+gdf_rbm = RBM(
+    schedule=CosineSchedule(clamp_range=[0.0001, 0.9999]),
+    input_scaler=VPScaler(), target=EpsilonTarget(),
+    noise_cond=CosineTNoiseCond(),
+    loss_weight=AdaptiveLossWeight(),
+)
+
+sampling_configs = {
+    "cfg": 5,
+    "sampler": DDPMSampler(gdf_rbm),
+    "shift": 1,
+    "timesteps": 20
+}
+
+extras = core.Extras(
+    gdf=gdf_rbm,
+    sampling_configs=sampling_configs,
+    transforms=extras.transforms,
+    effnet_preprocess=extras.effnet_preprocess,
+    clip_preprocess=extras.clip_preprocess
+)
+
+models = core.setup_models(extras)
+models.generator.eval().requires_grad_(False)
+
+# Setup extras and models for Stage B
+extras_b = core_b.setup_extras_pre()
+models_b = core_b.setup_models(extras_b, skip_clip=True)
+models_b = WurstCoreB.Models(
+    **{**models_b.to_dict(), 'tokenizer': models.tokenizer, 'text_model': models.text_model}
+)
+models_b.generator.bfloat16().eval().requires_grad_(False)
+
+# Off-load old generator (low VRAM mode)
+if low_vram:
+    models.generator.to("cpu")
+    clear_gpu_cache()
+
+# Load and configure new generator
+generator_rbm = StageCRBM()
+for param_name, param in load_or_fail(core.config.generator_checkpoint_path).items():
+    set_module_tensor_to_device(generator_rbm, param_name, "cpu", value=param)
+
+generator_rbm = generator_rbm.to(getattr(torch, core.config.dtype)).to(device)
+generator_rbm = core.load_model(generator_rbm, 'generator')
+
+# Create models_rbm instance
+models_rbm = core.Models(
+    effnet=models.effnet,
+    previewer=models.previewer,
+    generator=generator_rbm,
+    generator_ema=models.generator_ema,
+    tokenizer=models.tokenizer,
+    text_model=models.text_model,
+    image_model=models.image_model
+)
+models_rbm.generator.eval().requires_grad_(False)
 
 def infer(style_description, ref_style_file, caption):
     clear_gpu_cache()  # Clear cache before inference
