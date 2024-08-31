@@ -32,7 +32,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Flag for low VRAM usage
-low_vram = False
+low_vram = True
 
 # Function definition for low VRAM usage
 if low_vram:
