@@ -36,5 +36,8 @@ WORKDIR $HOME/app
 RUN python3 -m pip install --upgrade pip && \
     python3 -m pip install --no-cache-dir gradio
 
+# Copy the app.py file from the host to the container
+COPY --chown=user:user app.py .
+
 # Command to run the Gradio app
 CMD ["python3", "app.py"]
