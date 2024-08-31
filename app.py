@@ -2,13 +2,13 @@ import sys
 import os
 from pathlib import Path
 
-# Add the StableCascade directory to the Python path
-stable_cascade_path = Path(__file__).parent / "third_party" / "StableCascade"
-sys.path.append(str(stable_cascade_path))
-
-# Add the CSD directory to the Python path
-csd_path = Path(__file__).parent / "third_party" / "CSD"
-sys.path.append(str(csd_path))
+# Add the StableCascade and CSD directories to the Python path
+app_dir = Path(__file__).parent
+sys.path.extend([
+    str(app_dir),
+    str(app_dir / "third_party" / "StableCascade"),
+    str(app_dir / "third_party" / "CSD")
+])
 
 import yaml
 import torch
