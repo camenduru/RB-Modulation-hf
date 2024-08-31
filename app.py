@@ -150,15 +150,14 @@ models_rbm.generator.eval().requires_grad_(False)
 
 def infer(style_description, ref_style_file, caption):
     try:
-        # Instead of trying to move the entire models_rbm object, move individual components
-        models_rbm.effnet.to(device)
-        models_rbm.previewer.to(device)
-        models_rbm.generator.to(device)
-        models_rbm.text_model.to(device)
+        # Move all model components to the same device and set to the same precision
+        models_rbm.effnet.to(device).bfloat16()
+        models_rbm.previewer.to(device).bfloat16()
+        models_rbm.generator.to(device).bfloat16()
+        models_rbm.text_model.to(device).bfloat16()
         
-        # For models_b, we need to move its components as well
-        models_b.generator.to(device)
-        models_b.stage_a.to(device)
+        models_b.generator.to(device).bfloat16()
+        models_b.stage_a.to(device).bfloat16()
         
         clear_gpu_cache()  # Clear cache before inference
 
@@ -179,13 +178,11 @@ def infer(style_description, ref_style_file, caption):
         extras_b.sampling_configs['timesteps'] = 10
         extras_b.sampling_configs['t_start'] = 1.0
 
-        ref_style = resize_image(PIL.Image.open(ref_style_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
+        ref_style = resize_image(PIL.Image.open(ref_style_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device).bfloat16()
 
         batch = {'captions': [caption] * batch_size}
         batch['style'] = ref_style
 
-        # Ensure effnet is on the same device as the input
-        models_rbm.effnet.to(device)
         x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style))
 
         conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_style=True, eval_csd=False) 
@@ -198,7 +195,7 @@ def infer(style_description, ref_style_file, caption):
             models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
 
         # Stage C reverse process
-        with torch.cuda.amp.autocast():  # Use mixed precision
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16):  # Use mixed precision with bfloat16
             sampling_c = extras.gdf.sample(
                 models_rbm.generator, conditions, stage_c_latent_shape,
                 unconditions, device=device,
@@ -216,7 +213,7 @@ def infer(style_description, ref_style_file, caption):
         clear_gpu_cache()  # Clear cache between stages
 
         # Ensure all models are on the right device again
-        models_b.generator.to(device)
+        models_b.generator.to(device).bfloat16()
         
         # Stage B reverse process
         with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.bfloat16):                
