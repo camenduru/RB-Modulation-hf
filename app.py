@@ -1,4 +1,5 @@
 import gradio as gr
+from inference.utils import *
 
 def infer(un, deux, trois):
     return "quatre"
