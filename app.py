@@ -1,3 +1,11 @@
+import sys
+import os
+from pathlib import Path
+
+# Add the StableCascade directory to the Python path
+stable_cascade_path = Path(__file__).parent / "third_party" / "StableCascade"
+sys.path.append(str(stable_cascade_path))
+
 import gradio as gr
 from inference.utils import *
 
