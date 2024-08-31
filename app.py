@@ -194,14 +194,19 @@ def infer(style_description, ref_style_file, caption):
         sampled = models_b.stage_a.decode(sampled_b).float()
 
     sampled = torch.cat([
-        torch.nn.functional.interpolate(ref_style.cpu(), size=height),
+        torch.nn.functional.interpolate(ref_style.cpu(), size=(height, width)),
         sampled.cpu(),
-        ],
-        dim=0)
+    ], dim=0)
 
-    # Save the sampled image to a file
-    sampled_image = T.ToPILImage()(sampled.squeeze(0))  # Convert tensor to PIL image
-    sampled_image.save(output_file)  # Save the image
+    # Remove the batch dimension and keep only the generated image
+    sampled = sampled[1]  # This selects the generated image, discarding the reference style image
+
+    # Ensure the tensor is in [C, H, W] format
+    if sampled.dim() == 3 and sampled.shape[0] == 3:
+        sampled_image = T.ToPILImage()(sampled)  # Convert tensor to PIL image
+        sampled_image.save(output_file)  # Save the image as a PNG
+    else:
+        raise ValueError(f"Expected tensor of shape [3, H, W] but got {sampled.shape}")
 
     return output_file  # Return the path to the saved image
 
