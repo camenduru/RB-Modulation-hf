@@ -27,6 +27,7 @@ from utils import WurstCoreCRBM
 from gdf.schedulers import CosineSchedule
 from gdf import VPScaler, CosineTNoiseCond, DDPMSampler, P2LossWeight, AdaptiveLossWeight
 from gdf.targets import EpsilonTarget
+import PIL
 
 # Device configuration
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -132,7 +133,7 @@ models_rbm = core.Models(
 models_rbm.generator.eval().requires_grad_(False)
 
 def reset_inference_state():
-    global models_rbm, models_b, extras, extras_b
+    global models_rbm, models_b, extras, extras_b, device
     
     # Reset sampling configurations
     extras.sampling_configs['cfg'] = 5
@@ -145,13 +146,16 @@ def reset_inference_state():
     extras_b.sampling_configs['timesteps'] = 10
     extras_b.sampling_configs['t_start'] = 1.0
 
-    # Move models back to initial state
+    # Move models to the correct device
     if low_vram:
         models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
         models_b.generator.to("cpu")
     else:
-        models_to(models_rbm, device="cuda")
-        models_b.generator.to("cuda")
+        models_to(models_rbm, device=device)
+        models_b.generator.to(device)
+
+    # Ensure effnet is on the correct device
+    models_rbm.effnet.to(device)
 
     # Clear CUDA cache
     torch.cuda.empty_cache()
@@ -181,7 +185,9 @@ def infer(style_description, ref_style_file, caption):
         batch = {'captions': [caption] * batch_size}
         batch['style'] = ref_style
 
-        x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style.to(device)))
+        # Ensure effnet is on the correct device
+        models_rbm.effnet.to(device)
+        x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style))
 
         conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_style=True, eval_csd=False) 
         unconditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=True, eval_image_embeds=False)    
