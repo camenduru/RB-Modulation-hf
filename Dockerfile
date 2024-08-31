@@ -64,6 +64,14 @@ RUN pip install --no-cache-dir gdown
 # Download pre-trained CSD weights
 RUN gdown https://drive.google.com/uc?id=1FX0xs8p-C7Ob-h5Y4cUhTeOepHzXv_46 -O third_party/CSD/checkpoint.pth
 
+# Install LangSAM and its dependencies
+RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDINO.git && \
+    pip install --no-cache-dir segment-anything==1.0 && \
+    git clone https://github.com/luca-medeiros/lang-segment-anything && \
+    cd lang-segment-anything && \
+    pip install -e . && \
+    cd ..
+
 # Upgrade pip and install Gradio
 RUN python3 -m pip install --no-cache-dir gradio
 
