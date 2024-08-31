@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0 \
     python3-dev \
+    cuda-toolkit-11-8 \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a symlink for python
@@ -33,7 +35,9 @@ ENV HOME=/home/user \
 	GRADIO_SERVER_NAME=0.0.0.0 \
 	GRADIO_THEME=huggingface \
     GRADIO_SHARE=False \
-	SYSTEM=spaces
+	SYSTEM=spaces \
+    CUDA_HOME=/usr/local/cuda \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
 # Set the environment variable to specify the GPU device
 ENV CUDA_DEVICE_ORDER=PCI_BUS_ID
