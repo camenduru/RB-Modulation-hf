@@ -272,6 +272,113 @@ def infer(ref_style_file, style_description, caption):
         # Reset the state after inference, regardless of success or failure
         reset_inference_state()
 
+def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
+    global models_rbm, models_b
+    try:
+        caption = f"{caption} in {style_description}"
+        sam_prompt = f"{caption}"
+        use_sam_mask = False
+
+        if low_vram:
+            # Revert the devices of the modules back to their original state
+            models_to(models_rbm, device)
+        
+        batch_size = 1
+        height, width = 1024, 1024
+        stage_c_latent_shape, stage_b_latent_shape = calculate_latent_sizes(height, width, batch_size=batch_size)
+        
+        extras.sampling_configs['cfg'] = 4
+        extras.sampling_configs['shift'] = 2
+        extras.sampling_configs['timesteps'] = 20
+        extras.sampling_configs['t_start'] = 1.0
+        extras_b.sampling_configs['cfg'] = 1.1
+        extras_b.sampling_configs['shift'] = 1
+        extras_b.sampling_configs['timesteps'] = 10
+        extras_b.sampling_configs['t_start'] = 1.0
+        
+        ref_style = resize_image(PIL.Image.open(ref_style_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
+        ref_images = resize_image(PIL.Image.open(ref_sub_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
+        
+        batch = {'captions': [caption] * batch_size}
+        batch['style'] = ref_style
+        batch['images'] = ref_images
+        
+        x0_forward = models_rbm.effnet(extras.effnet_preprocess(ref_images.to(device)))
+        x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style.to(device)))
+        
+        ## SAM Mask for sub
+        use_sam_mask = False
+        x0_preview = models_rbm.previewer(x0_forward)
+        sam_model = LangSAM()
+        sam_mask, boxes, phrases, logits = sam_model.predict(transform(x0_preview[0]), sam_prompt)
+        sam_mask = sam_mask.detach().unsqueeze(dim=0).to(device)
+        
+        conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_subject_style=True, eval_csd=False)
+        unconditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=True, eval_image_embeds=False, eval_subject_style=True)    
+        conditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=False)
+        unconditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=True)
+
+        if low_vram:
+            # The sampling process uses more vram, so we offload everything except two modules to the cpu.
+            models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
+            models_to(sam_model, device="cpu")
+            models_to(sam_model.sam, device="cpu")
+        
+        # Stage C reverse process.
+        sampling_c = extras.gdf.sample(
+            models_rbm.generator, conditions, stage_c_latent_shape,
+            unconditions, device=device,
+            **extras.sampling_configs,
+            x0_style_forward=x0_style_forward, x0_forward=x0_forward,
+            apply_pushforward=False, tau_pushforward=5, tau_pushforward_csd=10, 
+            num_iter=3, eta=1e-1, tau=20, eval_sub_csd=True,
+            extras=extras, models=models_rbm,  
+            use_attn_mask=use_sam_mask,
+            save_attn_mask=False,
+            lam_content=1, lam_style=1,
+            sam_mask=sam_mask, use_sam_mask=use_sam_mask,
+            sam_prompt=sam_prompt
+        )
+        
+        for (sampled_c, _, _) in tqdm(sampling_c, total=extras.sampling_configs['timesteps']):
+            sampled_c = sampled_c
+
+        # Stage B reverse process.
+        with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.bfloat16):                
+            conditions_b['effnet'] = sampled_c
+            unconditions_b['effnet'] = torch.zeros_like(sampled_c)
+            
+            sampling_b = extras_b.gdf.sample(
+                models_b.generator, conditions_b, stage_b_latent_shape,
+                unconditions_b, device=device, **extras_b.sampling_configs,
+            )
+            for (sampled_b, _, _) in tqdm(sampling_b, total=extras_b.sampling_configs['timesteps']):
+                sampled_b = sampled_b
+            sampled = models_b.stage_a.decode(sampled_b).float()
+
+        sampled = torch.cat([
+            torch.nn.functional.interpolate(ref_images.cpu(), size=(height, width)),
+            torch.nn.functional.interpolate(ref_style.cpu(), size=(height, width)),
+            sampled.cpu(),
+        ], dim=0)
+
+        # Remove the batch dimension and keep only the generated image
+        sampled = sampled[2]  # This selects the generated image, discarding the reference images
+
+        # Ensure the tensor is in [C, H, W] format
+        if sampled.dim() == 3 and sampled.shape[0] == 3:
+            output_file = 'output_compo.png'
+            sampled_image = T.ToPILImage()(sampled)  # Convert tensor to PIL image
+            sampled_image.save(output_file)  # Save the image as a PNG
+        else:
+            raise ValueError(f"Expected tensor of shape [3, H, W] but got {sampled.shape}")
+
+        return output_file  # Return the path to the saved image
+
+    finally:
+        # Reset the state after inference, regardless of success or failure
+        reset_inference_state()
+
 import gradio as gr
 
 with gr.Blocks() as demo:
@@ -289,26 +396,33 @@ with gr.Blocks() as demo:
         </div>
         """)
         with gr.Row():
-            style_reference_image = gr.Image(
-                label = "Style Reference Image",
-                type = "filepath"
-            )
-            style_description = gr.Textbox(
-                label ="Style Description"
-            )
-            subject_prompt = gr.Textbox(
-                label = "Subject Prompt"
-            )
-            with gr.Accordion("Advanced Settings", open=False):
-                subject_reference = gr.Image(type="filepath")
-                use_subject_ref = gr.Checkbox(label="Use Subject Image as Reference", value=False)
-            submit_btn = gr.Button("Submit")
-        with gr.Row():
-            output_image = gr.Image(label="Output Image")
-
+            with gr.Column():
+                style_reference_image = gr.Image(
+                    label = "Style Reference Image",
+                    type = "filepath"
+                )
+                style_description = gr.Textbox(
+                    label ="Style Description"
+                )
+                subject_prompt = gr.Textbox(
+                    label = "Subject Prompt"
+                )
+                with gr.Accordion("Advanced Settings", open=False):
+                    subject_reference = gr.Image(type="filepath")
+                    use_subject_ref = gr.Checkbox(label="Use Subject Image as Reference", value=False)
+                submit_btn = gr.Button("Submit")
+            with gr.Column():
+                output_image = gr.Image(label="Output Image")
+    '''
     submit_btn.click(
         fn = infer,
         inputs = [style_reference_image, style_description, subject_prompt],
+        outputs = [output_image]
+    )
+    '''
+    submit_btn.click(
+        fn = infer_compo,
+        inputs = [style_description, style_reference_image, subject_prompt, subject_reference],
         outputs = [output_image]
     )
 
