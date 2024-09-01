@@ -133,7 +133,7 @@ models_rbm = core.Models(
 models_rbm.generator.eval().requires_grad_(False)
 
 def reset_inference_state():
-    global models_rbm, models_b, extras, extras_b, device
+    global models_rbm, models_b, extras, extras_b, device, core, core_b
     
     # Reset sampling configurations
     extras.sampling_configs['cfg'] = 5
@@ -146,6 +146,13 @@ def reset_inference_state():
     extras_b.sampling_configs['timesteps'] = 10
     extras_b.sampling_configs['t_start'] = 1.0
 
+    # Reset models
+    models_rbm = core.setup_models(extras)
+    models_b = core_b.setup_models(extras_b, skip_clip=True)
+    models_b = WurstCoreB.Models(
+        **{**models_b.to_dict(), 'tokenizer': models_rbm.tokenizer, 'text_model': models_rbm.text_model}
+    )
+
     # Move models to the correct device
     if low_vram:
         models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
@@ -157,11 +164,16 @@ def reset_inference_state():
     # Ensure effnet is on the correct device
     models_rbm.effnet.to(device)
 
+    # Set models to eval mode and disable gradients
+    models_rbm.generator.eval().requires_grad_(False)
+    models_b.generator.bfloat16().eval().requires_grad_(False)
+
     # Clear CUDA cache
     torch.cuda.empty_cache()
     gc.collect()
 
 def infer(style_description, ref_style_file, caption):
+    global models_rbm, models_b
     try:
         height=1024
         width=1024
