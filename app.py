@@ -122,14 +122,10 @@ generator_rbm = core.load_model(generator_rbm, 'generator')
 # Create models_rbm instance
 models_rbm = core.Models(
     effnet=models.effnet,
-    previewer=models.previewer,
-    generator=generator_rbm,
-    generator_ema=models.generator_ema,
-    tokenizer=models.tokenizer,
     text_model=models.text_model,
-    image_model=models.image_model,
-    stage_a=models.stage_a,
-    stage_b=models.stage_b,
+    tokenizer=models.tokenizer,
+    generator=generator_rbm,
+    previewer=models.previewer
 )
 
 def reset_inference_state():
