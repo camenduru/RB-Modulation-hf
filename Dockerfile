@@ -26,6 +26,9 @@ RUN useradd -m -u 1000 user
 
 USER user
 
+# Verify CUDA installation path
+RUN find /usr/local -type d -name "cuda*"
+
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
     PYTHONPATH=$HOME/app \
@@ -35,9 +38,11 @@ ENV HOME=/home/user \
 	GRADIO_SERVER_NAME=0.0.0.0 \
 	GRADIO_THEME=huggingface \
     GRADIO_SHARE=False \
-	SYSTEM=spaces \
-    CUDA_HOME=/usr/local/cuda \
-    LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+	SYSTEM=spaces
+
+# Set CUDA_HOME environment variable
+ENV CUDA_HOME=/usr/local/cuda-11.8
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 
 # Set the environment variable to specify the GPU device
 ENV CUDA_DEVICE_ORDER=PCI_BUS_ID
@@ -96,41 +101,12 @@ RUN python -c "from third_party.CSD import model; print('CSD model successfully 
 
 
 # Install LangSAM and its dependencies
-RUN pip install --no-cache-dir segment-anything==1.0 && \
+RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDINO.git && \
+    pip install --no-cache-dir segment-anything==1.0 && \
     git clone https://github.com/luca-medeiros/lang-segment-anything && \
     cd lang-segment-anything && \
     pip install -e . && \
     cd ..
-
-# Install GroundingDINO via pip
-RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDINO.git
-
-# Verify the installed package structure
-RUN find /home/user/.local/lib/python3.10/site-packages/groundingdino -type f
-
-# Create a custom setup.py for GroundingDINO extension
-RUN echo "from setuptools import setup\n\
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension\n\
-\n\
-setup(\n\
-    name='groundingdino',\n\
-    ext_modules=[\n\
-        CUDAExtension(\n\
-            name='_C',\n\
-            sources=['/home/user/.local/lib/python3.10/site-packages/groundingdino/models/GroundingDINO/csrc/ms_deform_attn.cpp', '/home/user/.local/lib/python3.10/site-packages/groundingdino/models/GroundingDINO/csrc/ms_deform_attn_cuda.cu'],\n\
-            extra_compile_args={'cxx': ['-g'], 'nvcc': ['-O2', '-arch=sm_70']},\n\
-        ),\n\
-    ],\n\
-    cmdclass={\n\
-        'build_ext': BuildExtension\n\
-    }\n\
-)" > /home/user/setup_groundingdino.py
-
-# Compile the GroundingDINO custom C++ operations
-RUN cd /home/user && \
-    python setup_groundingdino.py build_ext --inplace && \
-    rm setup_groundingdino.py
-
 
 # Upgrade pip and install Gradio
 RUN python3 -m pip install --no-cache-dir gradio
