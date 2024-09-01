@@ -125,7 +125,8 @@ models_rbm = core.Models(
     text_model=models.text_model,
     tokenizer=models.tokenizer,
     generator=generator_rbm,
-    previewer=models.previewer
+    previewer=models.previewer,
+    image_model=models.image_model  # Add this line
 )
 
 def reset_inference_state():
@@ -160,8 +161,10 @@ def reset_inference_state():
     
     models_b.generator.to("cpu")  # Keep Stage B generator on CPU for now
 
-    # Ensure effnet is on the correct device
+    # Ensure effnet and image_model are on the correct device
     models_rbm.effnet.to(device)
+    if models_rbm.image_model is not None:
+        models_rbm.image_model.to(device)
 
     # Reset model states
     models_rbm.generator.eval().requires_grad_(False)
@@ -204,8 +207,11 @@ def infer(style_description, ref_style_file, caption):
         
         models_b.generator.to(device)
 
-        # Ensure effnet is on the correct device
+        # Ensure effnet and image_model are on the correct device
         models_rbm.effnet.to(device)
+        if models_rbm.image_model is not None:
+            models_rbm.image_model.to(device)
+
         x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style))
 
         conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_style=True, eval_csd=False) 
