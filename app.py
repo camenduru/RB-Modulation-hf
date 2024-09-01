@@ -463,6 +463,7 @@ with gr.Blocks() as demo:
                         ["./data/cyberpunk.png","cyberpunk art style","a car",None,False ],
                         ["./data/melting_gold.png", "melting golden 3D rendering style", "a dog", "./data/dog.jpg", True]
                     ],
+                    fn=run,
                     inputs=[style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref],
                     outputs=[output_image],
                     cache_examples="lazy"
