@@ -413,6 +413,14 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
         # Reset the state after inference, regardless of success or failure
         reset_compo_inference_state()
 
+def run(style_description, style_reference_image, subject_prompt, subject_reference, use_subject_ref):
+    result = None
+    if use_subject_ref is True:
+        result = infer_compo(style_description, style_reference_image, subject_prompt, subject_reference)
+    else:
+        result = infer(style_reference_image, style_description, subject_prompt)
+    return result
+
 import gradio as gr
 
 with gr.Blocks() as demo:
@@ -455,8 +463,8 @@ with gr.Blocks() as demo:
     )
     '''
     submit_btn.click(
-        fn = infer_compo,
-        inputs = [style_description, style_reference_image, subject_prompt, subject_reference],
+        fn = run,
+        inputs = [style_description, style_reference_image, subject_prompt, subject_reference, use_subject_ref],
         outputs = [output_image]
     )
 
