@@ -276,7 +276,18 @@ import gradio as gr
 
 with gr.Blocks() as demo:
     with gr.Column():
-        gr.Mardown("# RB-Modulation")
+        gr.Markdown("# RB-Modulation")
+        gr.Markdown("## Training-Free Personalization of Diffusion Models using Stochastic Optimal Control")
+        gr.HTML("""
+        <div style="display:flex;column-gap:4px;">
+            <a href='https://rb-modulation.github.io'>
+                <img src='https://img.shields.io/badge/Project-Page-Green'>
+            </a> 
+            <a href='https://arxiv.org/pdf/2405.17401'>
+                <img src='https://img.shields.io/badge/Paper-Arxiv-red'>
+            </a>
+        </div>
+        """)
         with gr.Row():
             style_reference_image = gr.Image(
                 label = "Style Reference Image",
