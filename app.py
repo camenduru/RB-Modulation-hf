@@ -272,48 +272,68 @@ def infer(ref_style_file, style_description, caption):
         # Reset the state after inference, regardless of success or failure
         reset_inference_state()
 
+def reset_compo_inference_state():
+    global models_rbm, models_b, extras, extras_b, device, core, core_b
+    
+    # Reset sampling configurations
+    extras.sampling_configs['cfg'] = 4
+    extras.sampling_configs['shift'] = 2
+    extras.sampling_configs['timesteps'] = 20
+    extras.sampling_configs['t_start'] = 1.0
+
+    extras_b.sampling_configs['cfg'] = 1.1
+    extras_b.sampling_configs['shift'] = 1
+    extras_b.sampling_configs['timesteps'] = 10
+    extras_b.sampling_configs['t_start'] = 1.0
+
+    # Move models to CPU to free up GPU memory
+    models_to(models_rbm, device="cpu")
+    models_b.generator.to("cpu")
+
+    # Clear CUDA cache
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    # Ensure all models are in eval mode and don't require gradients
+    for model in [models_rbm.generator, models_b.generator]:
+        model.eval()
+        for param in model.parameters():
+            param.requires_grad = False
+
+    # Clear CUDA cache again
+    torch.cuda.empty_cache()
+    gc.collect()
+
 def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
-    global models_rbm, models_b
+    global models_rbm, models_b, device
     try:
         caption = f"{caption} in {style_description}"
         sam_prompt = f"{caption}"
         use_sam_mask = False
 
-        if low_vram:
-            # Revert the devices of the modules back to their original state
-            models_to(models_rbm, device)
+        # Ensure all models are on the correct device
+        models_to(models_rbm, device)
+        models_b.generator.to(device)
         
         batch_size = 1
         height, width = 1024, 1024
         stage_c_latent_shape, stage_b_latent_shape = calculate_latent_sizes(height, width, batch_size=batch_size)
         
-        extras.sampling_configs['cfg'] = 4
-        extras.sampling_configs['shift'] = 2
-        extras.sampling_configs['timesteps'] = 20
-        extras.sampling_configs['t_start'] = 1.0
-        extras_b.sampling_configs['cfg'] = 1.1
-        extras_b.sampling_configs['shift'] = 1
-        extras_b.sampling_configs['timesteps'] = 10
-        extras_b.sampling_configs['t_start'] = 1.0
-        
         ref_style = resize_image(PIL.Image.open(ref_style_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
         ref_images = resize_image(PIL.Image.open(ref_sub_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
         
-        batch = {'captions': [caption] * batch_size}
-        batch['style'] = ref_style
-        batch['images'] = ref_images
+        batch = {'captions': [caption] * batch_size, 'style': ref_style, 'images': ref_images}
         
-        x0_forward = models_rbm.effnet(extras.effnet_preprocess(ref_images.to(device)))
-        x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style.to(device)))
+        x0_forward = models_rbm.effnet(extras.effnet_preprocess(ref_images))
+        x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style))
         
         ## SAM Mask for sub
         use_sam_mask = False
         x0_preview = models_rbm.previewer(x0_forward)
         sam_model = LangSAM()
+        sam_model.to(device)
         
-        # Convert tensor to PIL Image before passing to sam_model.predict
-        x0_preview_pil = T.ToPILImage()(x0_preview[0])
-        x0_preview_tensor = T.ToTensor()(x0_preview_pil)  # Convert PIL Image back to tensor
+        x0_preview_pil = T.ToPILImage()(x0_preview[0].cpu())
         sam_mask, boxes, phrases, logits = sam_model.predict(x0_preview_pil, sam_prompt)
         sam_mask = sam_mask.detach().unsqueeze(dim=0).to(device)
         
@@ -323,7 +343,6 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
         unconditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=True)
 
         if low_vram:
-            # The sampling process uses more vram, so we offload everything except two modules to the cpu.
             models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
             models_to(sam_model, device="cpu")
             models_to(sam_model.sam, device="cpu")
@@ -381,7 +400,7 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
 
     finally:
         # Reset the state after inference, regardless of success or failure
-        reset_inference_state()
+        reset_compo_inference_state()
 
 import gradio as gr
 
