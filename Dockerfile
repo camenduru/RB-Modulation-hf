@@ -108,6 +108,28 @@ RUN git clone https://github.com/IDEA-Research/GroundingDINO.git && \
     pip install -e . && \
     cd ..
 
+# Create a custom setup.py for GroundingDINO extension
+RUN echo "from setuptools import setup\n\
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension\n\
+\n\
+setup(\n\
+    name='groundingdino',\n\
+    ext_modules=[\n\
+        CUDAExtension(\n\
+            name='_C',\n\
+            sources=['/home/user/GroundingDINO/groundingdino/models/GroundingDINO/csrc/ms_deform_attn.cpp', '/home/user/GroundingDINO/groundingdino/models/GroundingDINO/csrc/ms_deform_attn_cuda.cu'],\n\
+        ),\n\
+    ],\n\
+    cmdclass={\n\
+        'build_ext': BuildExtension\n\
+    }\n\
+)" > /home/user/GroundingDINO/groundingdino/models/GroundingDINO/csrc/setup.py
+
+# Compile the GroundingDINO custom C++ operations
+RUN cd /home/user/GroundingDINO/groundingdino/models/GroundingDINO/csrc && \
+    python setup.py build_ext --inplace && \
+    cd /home/user/app
+
 # Upgrade pip and install Gradio
 RUN python3 -m pip install --no-cache-dir gradio
 
