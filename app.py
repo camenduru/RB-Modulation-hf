@@ -177,6 +177,7 @@ def reset_inference_state():
 def infer(ref_style_file, style_description, caption):
     global models_rbm, models_b
     try:
+        caption = f"{caption} in {style_description}"
         height=1024
         width=1024
         batch_size=1
