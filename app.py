@@ -290,6 +290,10 @@ def reset_compo_inference_state():
     models_to(models_rbm, device="cpu")
     models_b.generator.to("cpu")
 
+    # Clear CUDA cache
+    torch.cuda.empty_cache()
+    gc.collect()
+
     # Move SAM model components to CPU if they exist
     models_to(sam_model, device="cpu")
     models_to(sam_model.sam, device="cpu")
@@ -351,8 +355,8 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
 
         if low_vram:
             models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
-            models_to(sam_model, device)
-            models_to(sam_model.sam, device)
+            models_to(sam_model, device="cpu")
+            models_to(sam_model.sam, device="cpu")
         
         # Stage C reverse process.
         sampling_c = extras.gdf.sample(
