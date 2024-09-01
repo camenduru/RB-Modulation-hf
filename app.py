@@ -174,7 +174,7 @@ def reset_inference_state():
     torch.cuda.empty_cache()
     gc.collect()
 
-def infer(style_description, ref_style_file, caption):
+def infer(ref_style_file, style_description, caption):
     global models_rbm, models_b
     try:
         height=1024
@@ -274,8 +274,31 @@ def infer(style_description, ref_style_file, caption):
 
 import gradio as gr
 
-gr.Interface(
-    fn = infer,
-    inputs=[gr.Textbox(label="style description"), gr.Image(label="Ref Style File", type="filepath"), gr.Textbox(label="caption")],
-    outputs=[gr.Image()]
-).launch()
+with gr.Blocks() as demo:
+    with gr.Column():
+        gr.Mardown("# RB-Modulation")
+        with gr.Row():
+            style_reference_image = gr.Image(
+                label = "Style Reference Image",
+                type = "filepath"
+            )
+            style_description = gr.Textbox(
+                label ="Style Description"
+            )
+            subject_prompt = gr.Textbox(
+                label = "Subject Prompt"
+            )
+            with gr.Accordion("Advanced Settings", open=False):
+                subject_reference = gr.Image(type="filepath")
+                use_subject_ref = gr.Checkbox(label="Use Subject Image as Reference", value=False)
+            submit_btn = gr.Button("Submit")
+        with gr.Row():
+            output_image = gr.Image(label="Output Image")
+
+    submit_btn.click(
+        fn = infer,
+        inputs = [style_reference_image, style_description, subject_prompt],
+        outputs = [output_image]
+    )
+
+demo.launch()
