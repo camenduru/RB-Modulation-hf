@@ -465,7 +465,7 @@ with gr.Blocks() as demo:
                     ],
                     inputs=[style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref],
                     outputs=[output_image],
-                    cache_examples=True
+                    cache_examples="lazy"
                 
                 )
     
