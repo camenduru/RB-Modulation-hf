@@ -96,17 +96,17 @@ RUN python -c "from third_party.CSD import model; print('CSD model successfully 
 
 
 # Install LangSAM and its dependencies
-RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDINO.git && \
-    pip install --no-cache-dir segment-anything==1.0 && \
+RUN pip install --no-cache-dir segment-anything==1.0 && \
     git clone https://github.com/luca-medeiros/lang-segment-anything && \
     cd lang-segment-anything && \
     pip install -e . && \
     cd ..
 
-# Compile the GroundingDINO extension
-RUN cd /home/user/.local/lib/python3.10/site-packages/groundingdino/models/GroundingDINO && \
-    python setup.py build_ext --inplace && \
-    cd /home/user/app
+# Clone the GroundingDINO repository and install it
+RUN git clone https://github.com/IDEA-Research/GroundingDINO.git && \
+    cd GroundingDINO && \
+    pip install -e . && \
+    cd ..
 
 # Upgrade pip and install Gradio
 RUN python3 -m pip install --no-cache-dir gradio
