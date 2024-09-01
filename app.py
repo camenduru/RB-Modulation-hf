@@ -351,10 +351,8 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
 
         if low_vram:
             models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
-            if hasattr(sam_model, 'sam'):
-                sam_model.sam.to("cpu")
-            if hasattr(sam_model, 'text_encoder'):
-                sam_model.text_encoder.to("cpu")
+            models_to(sam_model, device)
+            models_to(sam_model.sam, device)
         
         # Stage C reverse process.
         sampling_c = extras.gdf.sample(
