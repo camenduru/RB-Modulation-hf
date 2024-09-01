@@ -273,7 +273,7 @@ def infer(ref_style_file, style_description, caption):
         reset_inference_state()
 
 def reset_compo_inference_state():
-    global models_rbm, models_b, extras, extras_b, device, core, core_b
+    global models_rbm, models_b, extras, extras_b, device, core, core_b, sam_model
     
     # Reset sampling configurations
     extras.sampling_configs['cfg'] = 4
@@ -290,6 +290,13 @@ def reset_compo_inference_state():
     models_to(models_rbm, device="cpu")
     models_b.generator.to("cpu")
 
+    # Move SAM model components to CPU if they exist
+    if 'sam_model' in globals():
+        if hasattr(sam_model, 'sam'):
+            sam_model.sam.to("cpu")
+        if hasattr(sam_model, 'text_encoder'):
+            sam_model.text_encoder.to("cpu")
+
     # Clear CUDA cache
     torch.cuda.empty_cache()
     gc.collect()
@@ -305,7 +312,7 @@ def reset_compo_inference_state():
     gc.collect()
 
 def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
-    global models_rbm, models_b, device
+    global models_rbm, models_b, device, sam_model
     try:
         caption = f"{caption} in {style_description}"
         sam_prompt = f"{caption}"
@@ -331,7 +338,12 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
         use_sam_mask = False
         x0_preview = models_rbm.previewer(x0_forward)
         sam_model = LangSAM()
-        sam_model.to(device)
+        
+        # Move SAM model components to the correct device
+        if hasattr(sam_model, 'sam'):
+            sam_model.sam.to(device)
+        if hasattr(sam_model, 'text_encoder'):
+            sam_model.text_encoder.to(device)
         
         x0_preview_pil = T.ToPILImage()(x0_preview[0].cpu())
         sam_mask, boxes, phrases, logits = sam_model.predict(x0_preview_pil, sam_prompt)
@@ -344,8 +356,10 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
 
         if low_vram:
             models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
-            models_to(sam_model, device="cpu")
-            models_to(sam_model.sam, device="cpu")
+            if hasattr(sam_model, 'sam'):
+                sam_model.sam.to("cpu")
+            if hasattr(sam_model, 'text_encoder'):
+                sam_model.text_encoder.to("cpu")
         
         # Stage C reverse process.
         sampling_c = extras.gdf.sample(
