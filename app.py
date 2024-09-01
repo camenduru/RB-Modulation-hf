@@ -455,22 +455,20 @@ with gr.Blocks() as demo:
                     use_subject_ref = gr.Checkbox(label="Use Subject Image as Reference", value=False)
                 submit_btn = gr.Button("Submit")
 
+                
+            with gr.Column():
+                output_image = gr.Image(label="Output Image")
                 gr.Examples(
                     examples = [
                         ["./data/cyberpunk.png","cyberpunk art style","a car",None,False ],
                         ["./data/melting_gold.png", "melting golden 3D rendering style", "a dog", "./data/dog.jpg", True]
                     ],
-                    inputs=[style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref]
+                    inputs=[style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref],
+                    outputs=[output_image],
+                    cache_examples=True
+                
                 )
-            with gr.Column():
-                output_image = gr.Image(label="Output Image")
-    '''
-    submit_btn.click(
-        fn = infer,
-        inputs = [style_reference_image, style_description, subject_prompt],
-        outputs = [output_image]
-    )
-    '''
+    
     submit_btn.click(
         fn = run,
         inputs = [style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref],
