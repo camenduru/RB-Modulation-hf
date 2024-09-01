@@ -115,6 +115,7 @@ setup(\n\
         CUDAExtension(\n\
             name='_C',\n\
             sources=['/home/user/.local/lib/python3.10/site-packages/groundingdino/models/GroundingDINO/csrc/ms_deform_attn.cpp', '/home/user/.local/lib/python3.10/site-packages/groundingdino/models/GroundingDINO/csrc/ms_deform_attn_cuda.cu'],\n\
+            extra_compile_args={'cxx': ['-g'], 'nvcc': ['-O2', '-arch=sm_70']},\n\
         ),\n\
     ],\n\
     cmdclass={\n\
