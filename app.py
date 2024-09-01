@@ -295,6 +295,14 @@ def reset_compo_inference_state():
     torch.cuda.empty_cache()
     gc.collect()
 
+    # Move necessary models back to the correct device
+    if low_vram:
+        models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
+        models_rbm.generator.to(device)
+        models_rbm.previewer.to(device)
+    else:
+        models_to(models_rbm, device=device)
+
     # Move SAM model components to CPU if they exist
     models_to(sam_model, device="cpu")
     models_to(sam_model.sam, device="cpu")
