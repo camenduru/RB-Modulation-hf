@@ -42,6 +42,7 @@ ENV HOME=/home/user \
 
 # Set CUDA_HOME environment variable
 ENV CUDA_HOME=/usr/local/cuda-11.8
+ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6+PTX;8.9;9.0"
 ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 
 # Set the environment variable to specify the GPU device
@@ -107,29 +108,6 @@ RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDIN
     cd lang-segment-anything && \
     pip install -e . && \
     cd ..
-
-# Create a custom setup.py for GroundingDINO extension
-RUN echo "from setuptools import setup\n\
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension\n\
-\n\
-setup(\n\
-    name='groundingdino',\n\
-    ext_modules=[\n\
-        CUDAExtension(\n\
-            name='_C',\n\
-            sources=['/home/user/.local/lib/python3.10/site-packages/groundingdino/models/GroundingDINO/csrc/ms_deform_attn.cpp', '/home/user/.local/lib/python3.10/site-packages/groundingdino/models/GroundingDINO/csrc/ms_deform_attn_cuda.cu'],\n\
-            extra_compile_args={'cxx': ['-g'], 'nvcc': ['-O2', '-arch=sm_70']},\n\
-        ),\n\
-    ],\n\
-    cmdclass={\n\
-        'build_ext': BuildExtension\n\
-    }\n\
-)" > /home/user/setup_groundingdino.py
-
-# Compile the GroundingDINO custom C++ operations
-RUN cd /home/user && \
-    python setup_groundingdino.py build_ext --inplace && \
-    rm setup_groundingdino.py
 
 # Upgrade pip and install Gradio
 RUN python3 -m pip install --no-cache-dir gradio
