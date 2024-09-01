@@ -321,7 +321,10 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
         use_sam_mask = False
         x0_preview = models_rbm.previewer(x0_forward)
         sam_model = LangSAM()
-        sam_mask, boxes, phrases, logits = sam_model.predict(transform(x0_preview[0]), sam_prompt)
+        
+        # Convert tensor to PIL Image before passing to sam_model.predict
+        x0_preview_pil = T.ToPILImage()(x0_preview[0])
+        sam_mask, boxes, phrases, logits = sam_model.predict(x0_preview_pil, sam_prompt)
         sam_mask = sam_mask.detach().unsqueeze(dim=0).to(device)
         
         conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_subject_style=True, eval_csd=False)
