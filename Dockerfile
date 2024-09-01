@@ -110,7 +110,7 @@ RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDIN
     cd ..
 
 # Upgrade pip and install Gradio
-RUN python3 -m pip install --no-cache-dir gradio
+RUN python3 -m pip install --no-cache-dir gradio==4.42.0
 
 # Copy the app.py file from the host to the container
 COPY --chown=user:user app.py .
