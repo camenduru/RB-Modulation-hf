@@ -103,6 +103,11 @@ RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDIN
     pip install -e . && \
     cd ..
 
+# Compile the GroundingDINO extension
+RUN cd /home/user/.local/lib/python3.10/site-packages/groundingdino/models/GroundingDINO && \
+    python setup.py build_ext --inplace && \
+    cd /home/user/app
+
 # Upgrade pip and install Gradio
 RUN python3 -m pip install --no-cache-dir gradio
 
