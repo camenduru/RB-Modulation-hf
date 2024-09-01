@@ -37,25 +37,24 @@ print(device)
 low_vram = True
 
 # Function definition for low VRAM usage
-if low_vram:
-    def models_to(model, device="cpu", excepts=None):
-        """
-        Change the device of nn.Modules within a class, skipping specified attributes.
-        """
-        for attr_name in dir(model):
-            if attr_name.startswith('__') and attr_name.endswith('__'):
-                continue  # skip special attributes
+def models_to(model, device="cpu", excepts=None):
+    """
+    Change the device of nn.Modules within a class, skipping specified attributes.
+    """
+    for attr_name in dir(model):
+        if attr_name.startswith('__') and attr_name.endswith('__'):
+            continue  # skip special attributes
 
-            attr_value = getattr(model, attr_name, None)
+        attr_value = getattr(model, attr_name, None)
 
-            if isinstance(attr_value, torch.nn.Module):
-                if excepts and attr_name in excepts:
-                    print(f"Except '{attr_name}'")
-                    continue
-                print(f"Change device of '{attr_name}' to {device}")
-                attr_value.to(device)
-        
-        torch.cuda.empty_cache()
+        if isinstance(attr_value, torch.nn.Module):
+            if excepts and attr_name in excepts:
+                print(f"Except '{attr_name}'")
+                continue
+            print(f"Change device of '{attr_name}' to {device}")
+            attr_value.to(device)
+    
+    torch.cuda.empty_cache()
 
 # Stage C model configuration
 config_file = 'third_party/StableCascade/configs/inference/stage_c_3b.yaml'
@@ -128,9 +127,10 @@ models_rbm = core.Models(
     generator_ema=models.generator_ema,
     tokenizer=models.tokenizer,
     text_model=models.text_model,
-    image_model=models.image_model
+    image_model=models.image_model,
+    stage_a=models.stage_a,
+    stage_b=models.stage_b,
 )
-models_rbm.generator.eval().requires_grad_(False)
 
 def reset_inference_state():
     global models_rbm, models_b, extras, extras_b, device, core, core_b
@@ -146,29 +146,32 @@ def reset_inference_state():
     extras_b.sampling_configs['timesteps'] = 10
     extras_b.sampling_configs['t_start'] = 1.0
 
-    # Reset models
-    models_rbm = core.setup_models(extras)
-    models_b = core_b.setup_models(extras_b, skip_clip=True)
-    models_b = WurstCoreB.Models(
-        **{**models_b.to_dict(), 'tokenizer': models_rbm.tokenizer, 'text_model': models_rbm.text_model}
-    )
+    # Move models to CPU to free up GPU memory
+    models_to(models_rbm, device="cpu")
+    models_b.generator.to("cpu")
 
-    # Move models to the correct device
+    # Clear CUDA cache
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    # Move necessary models back to the correct device
     if low_vram:
         models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
-        models_b.generator.to("cpu")
+        models_rbm.generator.to(device)
+        models_rbm.previewer.to(device)
     else:
         models_to(models_rbm, device=device)
-        models_b.generator.to(device)
+    
+    models_b.generator.to("cpu")  # Keep Stage B generator on CPU for now
 
     # Ensure effnet is on the correct device
     models_rbm.effnet.to(device)
 
-    # Set models to eval mode and disable gradients
+    # Reset model states
     models_rbm.generator.eval().requires_grad_(False)
     models_b.generator.bfloat16().eval().requires_grad_(False)
 
-    # Clear CUDA cache
+    # Clear CUDA cache again
     torch.cuda.empty_cache()
     gc.collect()
 
@@ -196,6 +199,14 @@ def infer(style_description, ref_style_file, caption):
 
         batch = {'captions': [caption] * batch_size}
         batch['style'] = ref_style
+
+        # Ensure models are on the correct device before inference
+        if low_vram:
+            models_to(models_rbm, device=device, excepts=["generator", "previewer"])
+        else:
+            models_to(models_rbm, device=device)
+        
+        models_b.generator.to(device)
 
         # Ensure effnet is on the correct device
         models_rbm.effnet.to(device)
