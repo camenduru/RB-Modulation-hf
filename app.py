@@ -283,6 +283,17 @@ def transform(tensor):
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])(to_pil(tensor))
 
+def transform(tensor):
+    """
+    Define the necessary transformations for the image.
+    """
+    to_pil = T.ToPILImage()
+    return T.Compose([
+        T.Resize((256, 256)),  # Example resize, adjust as needed
+        T.ToTensor(),
+        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])(to_pil(tensor))
+
 def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
     global models_rbm, models_b
     try:
