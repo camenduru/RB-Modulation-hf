@@ -414,7 +414,7 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
         # Reset the state after inference, regardless of success or failure
         reset_compo_inference_state()
 
-def run(style_description, style_reference_image, subject_prompt, subject_reference, use_subject_ref):
+def run(style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref):
     result = None
     if use_subject_ref is True:
         result = infer_compo(style_description, style_reference_image, subject_prompt, subject_reference)
@@ -454,6 +454,14 @@ with gr.Blocks() as demo:
                     subject_reference = gr.Image(type="filepath")
                     use_subject_ref = gr.Checkbox(label="Use Subject Image as Reference", value=False)
                 submit_btn = gr.Button("Submit")
+
+                gr.Examples(
+                    examples = [
+                        ["./data/cyberpunk.png","cyberpunk art style","a car",None,False ],
+                        ["./data/melting_gold.png", "melting golden 3D rendering style", "a dog", "./data/dog.jpg", True]
+                    ],
+                    inputs=[style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref]
+                )
             with gr.Column():
                 output_image = gr.Image(label="Output Image")
     '''
@@ -465,7 +473,7 @@ with gr.Blocks() as demo:
     '''
     submit_btn.click(
         fn = run,
-        inputs = [style_description, style_reference_image, subject_prompt, subject_reference, use_subject_ref],
+        inputs = [style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref],
         outputs = [output_image]
     )
 
