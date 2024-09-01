@@ -105,6 +105,9 @@ RUN pip install --no-cache-dir segment-anything==1.0 && \
 # Install GroundingDINO via pip
 RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDINO.git
 
+# Verify the installed package structure
+RUN find /home/user/.local/lib/python3.10/site-packages/groundingdino -type f
+
 # Create a custom setup.py for GroundingDINO extension
 RUN echo "from setuptools import setup\n\
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension\n\
