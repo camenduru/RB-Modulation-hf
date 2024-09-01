@@ -102,11 +102,8 @@ RUN pip install --no-cache-dir segment-anything==1.0 && \
     pip install -e . && \
     cd ..
 
-# Clone the GroundingDINO repository and install it
-RUN git clone https://github.com/IDEA-Research/GroundingDINO.git && \
-    cd GroundingDINO && \
-    pip install -e . && \
-    cd ..
+# Install GroundingDINO via pip
+RUN pip install --no-cache-dir git+https://github.com/IDEA-Research/GroundingDINO.git
 
 # Create a custom setup.py for GroundingDINO extension
 RUN echo "from setuptools import setup\n\
@@ -117,18 +114,19 @@ setup(\n\
     ext_modules=[\n\
         CUDAExtension(\n\
             name='_C',\n\
-            sources=['/home/user/GroundingDINO/groundingdino/models/GroundingDINO/csrc/ms_deform_attn.cpp', '/home/user/GroundingDINO/groundingdino/models/GroundingDINO/csrc/ms_deform_attn_cuda.cu'],\n\
+            sources=['/home/user/.local/lib/python3.10/site-packages/groundingdino/models/GroundingDINO/csrc/ms_deform_attn.cpp', '/home/user/.local/lib/python3.10/site-packages/groundingdino/models/GroundingDINO/csrc/ms_deform_attn_cuda.cu'],\n\
         ),\n\
     ],\n\
     cmdclass={\n\
         'build_ext': BuildExtension\n\
     }\n\
-)" > /home/user/GroundingDINO/groundingdino/models/GroundingDINO/csrc/setup.py
+)" > /home/user/setup_groundingdino.py
 
 # Compile the GroundingDINO custom C++ operations
-RUN cd /home/user/GroundingDINO/groundingdino/models/GroundingDINO/csrc && \
-    python setup.py build_ext --inplace && \
-    cd /home/user/app
+RUN cd /home/user && \
+    python setup_groundingdino.py build_ext --inplace && \
+    rm setup_groundingdino.py
+
 
 # Upgrade pip and install Gradio
 RUN python3 -m pip install --no-cache-dir gradio
