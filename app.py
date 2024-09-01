@@ -291,12 +291,9 @@ def reset_compo_inference_state():
     models_b.generator.to("cpu")
 
     # Move SAM model components to CPU if they exist
-    if 'sam_model' in globals():
-        if hasattr(sam_model, 'sam'):
-            sam_model.sam.to("cpu")
-        if hasattr(sam_model, 'text_encoder'):
-            sam_model.text_encoder.to("cpu")
-
+    models_to(sam_model, device="cpu")
+    models_to(sam_model.sam, device="cpu")
+    
     # Clear CUDA cache
     torch.cuda.empty_cache()
     gc.collect()
@@ -340,10 +337,8 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
         sam_model = LangSAM()
         
         # Move SAM model components to the correct device
-        if hasattr(sam_model, 'sam'):
-            sam_model.sam.to(device)
-        if hasattr(sam_model, 'text_encoder'):
-            sam_model.text_encoder.to(device)
+        models_to(sam_model, device)
+        models_to(sam_model.sam, device)
         
         x0_preview_pil = T.ToPILImage()(x0_preview[0].cpu())
         sam_mask, boxes, phrases, logits = sam_model.predict(x0_preview_pil, sam_prompt)
