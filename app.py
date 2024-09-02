@@ -131,21 +131,9 @@ models_rbm = core.Models(
 
 def unload_models_and_clear_cache():
     global models_rbm, models_b, sam_model, extras, extras_b
-    
-    # Reset sampling configurations
-    extras.sampling_configs['cfg'] = 5
-    extras.sampling_configs['shift'] = 1
-    extras.sampling_configs['timesteps'] = 20
-    extras.sampling_configs['t_start'] = 1.0
-
-    extras_b.sampling_configs['cfg'] = 1.1
-    extras_b.sampling_configs['shift'] = 1
-    extras_b.sampling_configs['timesteps'] = 10
-    extras_b.sampling_configs['t_start'] = 1.0
 
     # Move all models to CPU
     models_to(models_rbm, device="cpu")
-    models_b.generator.to("cpu")
     
     # Move SAM model components to CPU if they exist
     if 'sam_model' in globals():
@@ -168,48 +156,12 @@ def unload_models_and_clear_cache():
 
 def reset_inference_state():
     global models_rbm, models_b, extras, extras_b, device, core, core_b
-    
-    # Reset sampling configurations
-    extras.sampling_configs['cfg'] = 5
-    extras.sampling_configs['shift'] = 1
-    extras.sampling_configs['timesteps'] = 20
-    extras.sampling_configs['t_start'] = 1.0
-
-    extras_b.sampling_configs['cfg'] = 1.1
-    extras_b.sampling_configs['shift'] = 1
-    extras_b.sampling_configs['timesteps'] = 10
-    extras_b.sampling_configs['t_start'] = 1.0
-
-    # Move models to CPU to free up GPU memory
-    models_to(models_rbm, device="cpu")
-    models_b.generator.to("cpu")
 
     # Clear CUDA cache
     torch.cuda.empty_cache()
     gc.collect()
 
-    # Move necessary models back to the correct device
-    if low_vram:
-        models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
-        models_rbm.generator.to(device)
-        models_rbm.previewer.to(device)
-    else:
-        models_to(models_rbm, device=device)
-    
-    models_b.generator.to("cpu")  # Keep Stage B generator on CPU for now
-
-    # Ensure effnet and image_model are on the correct device
-    models_rbm.effnet.to(device)
-    if models_rbm.image_model is not None:
-        models_rbm.image_model.to(device)
-
-    # Reset model states
-    models_rbm.generator.eval().requires_grad_(False)
-    models_b.generator.bfloat16().eval().requires_grad_(False)
-
-    # Clear CUDA cache again
-    torch.cuda.empty_cache()
-    gc.collect()
+    models_to(models_rbm, device=device, excepts=["generator", "previewer"]) 
 
 def infer(ref_style_file, style_description, caption):
     global models_rbm, models_b
@@ -236,19 +188,6 @@ def infer(ref_style_file, style_description, caption):
 
         batch = {'captions': [caption] * batch_size}
         batch['style'] = ref_style
-
-        # Ensure models are on the correct device before inference
-        if low_vram:
-            models_to(models_rbm, device=device, excepts=["generator", "previewer"])
-        else:
-            models_to(models_rbm, device=device)
-        
-        models_b.generator.to(device)
-
-        # Ensure effnet and image_model are on the correct device
-        models_rbm.effnet.to(device)
-        if models_rbm.image_model is not None:
-            models_rbm.image_model.to(device)
 
         x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style))
 
@@ -308,9 +247,9 @@ def infer(ref_style_file, style_description, caption):
 
     finally:
         # Reset the state after inference, regardless of success or failure
-        # reset_inference_state()
+        reset_inference_state()
         # Unload models and clear cache after inference
-        unload_models_and_clear_cache()
+        # unload_models_and_clear_cache()
 
 def reset_compo_inference_state():
     global models_rbm, models_b, extras, extras_b, device, core, core_b, sam_model
