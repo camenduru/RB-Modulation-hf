@@ -338,6 +338,7 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
         else:
             raise ValueError(f"Expected tensor of shape [3, H, W] but got {sampled.shape}")
 
+        progress(1.0, "Inference complete")
         return output_file  # Return the path to the saved image
 
     finally:
