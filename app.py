@@ -423,6 +423,12 @@ def run(style_reference_image, style_description, subject_prompt, subject_refere
         result = infer(style_reference_image, style_description, subject_prompt)
     return result
 
+def show_hide_subject_image_component(use_subject_ref):
+    if use_subject_ref is True:
+        return gr.update(open=True)
+    else:
+        return gr.update(open=False)
+
 import gradio as gr
 
 with gr.Blocks() as demo:
@@ -451,9 +457,11 @@ with gr.Blocks() as demo:
                 subject_prompt = gr.Textbox(
                     label = "Subject Prompt"
                 )
-                with gr.Accordion("Advanced Settings", open=False):
-                    subject_reference = gr.Image(type="filepath")
-                    use_subject_ref = gr.Checkbox(label="Use Subject Image as Reference", value=False)
+                use_subject_ref = gr.Checkbox(label="Use Subject Image as Reference", value=False)
+                
+                with gr.Accordion("Advanced Settings", open=False) as sub_img_panel:
+                    subject_reference = gr.Image(label="Subject Reference", type="filepath")
+                    
                 submit_btn = gr.Button("Submit")
 
                 
@@ -461,7 +469,9 @@ with gr.Blocks() as demo:
                 output_image = gr.Image(label="Output Image")
                 gr.Examples(
                     examples = [
-                        ["./data/cyberpunk.png","cyberpunk art style","a car",None,False ],
+                        ["./data/cyberpunk.png", "cyberpunk art style", "a car", None, False],
+                        ["./data/mosaic.png", "mosaic art style", "a lighthouse", None, False],
+                        ["./data/glowing.png", "glowing style", "a dwarf", None, False],
                         ["./data/melting_gold.png", "melting golden 3D rendering style", "a dog", "./data/dog.jpg", True]
                     ],
                     fn=run,
@@ -470,11 +480,19 @@ with gr.Blocks() as demo:
                     cache_examples="lazy"
                 
                 )
+
+    use_subject_ref.input(
+        fn = show_hide_subject_image_component,
+        inputs = [use_subject_ref],
+        outputs = [sub_img_panel],
+        queue = False
+    )
     
     submit_btn.click(
         fn = run,
         inputs = [style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref],
-        outputs = [output_image]
+        outputs = [output_image],
+        show_api = False
     )
 
-demo.launch()
+demo.queue().launch(show_error=True, show_api=False)
