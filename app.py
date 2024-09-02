@@ -174,9 +174,10 @@ def reset_inference_state():
     torch.cuda.empty_cache()
     gc.collect()
 
-def infer(style_description, ref_style_file, caption):
+def infer(ref_style_file, style_description, caption):
     global models_rbm, models_b
     try:
+        caption = f"{caption} in {style_description}"
         height=1024
         width=1024
         batch_size=1
@@ -270,7 +271,9 @@ def infer(style_description, ref_style_file, caption):
 
     finally:
         # Reset the state after inference, regardless of success or failure
-        reset_inference_state()
+        # reset_inference_state()
+        # Unload models and clear cache after inference
+        unload_models_and_clear_cache()
 
 def reset_compo_inference_state():
     global models_rbm, models_b, extras, extras_b, device, core, core_b, sam_model
@@ -411,8 +414,10 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
 
     finally:
         # Reset the state after inference, regardless of success or failure
-        reset_compo_inference_state()
-        reset_inference_state()
+        # reset_compo_inference_state()
+        # reset_inference_state()
+        # Unload models and clear cache after inference
+        unload_models_and_clear_cache()
 
 def run(style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref):
     result = None
