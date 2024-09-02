@@ -182,9 +182,10 @@ def infer(ref_style_file, style_description, caption, progress):
             lam_style=1, lam_txt_alignment=1.0,
             use_ddim_sampler=True,
         )
-        for i, (sampled_c, _, _) in enumerate(sampling_c, 1):
-            if i % 5 == 0:  # Update progress every 5 steps
-                progress(0.4 + 0.3 * (i / extras.sampling_configs['timesteps']), f"Stage C reverse process: step {i}/{extras.sampling_configs['timesteps']}")
+        for (sampled_c, _, _) in progress.tqdm(sampling_c, total=extras.sampling_configs['timesteps']):
+        #for i, (sampled_c, _, _) in enumerate(sampling_c, 1):
+        #    if i % 5 == 0:  # Update progress every 5 steps
+        #        progress(0.4 + 0.3 * (i / extras.sampling_configs['timesteps']), f"Stage C reverse process: step {i}/{extras.sampling_configs['timesteps']}")
             sampled_c = sampled_c
 
         progress(0.7, "Starting Stage B reverse process")
@@ -347,7 +348,7 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
 
 def run(style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref):
     result = None
-    progress = gr.Progress()
+    progress = gr.Progress(track_tqdm=True)
     if use_subject_ref is True:
         result = infer_compo(style_description, style_reference_image, subject_prompt, subject_reference, progress)
     else:
