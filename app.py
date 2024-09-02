@@ -129,7 +129,7 @@ models_rbm.generator.eval().requires_grad_(False)
 
 
 def infer(ref_style_file, style_description, caption, progress):
-    global models_rbm, models_b, device:        
+    global models_rbm, models_b, device
     
     if low_vram:
         models_to(models_rbm, device=device, excepts=["generator", "previewer"])
