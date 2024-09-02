@@ -106,6 +106,24 @@ models_b = WurstCoreB.Models(
 )
 models_b.generator.bfloat16().eval().requires_grad_(False)
 
+if low_vram:
+    # Off-load old generator (which is not used in models_rbm)
+    models.generator.to("cpu")
+    torch.cuda.empty_cache()
+
+generator_rbm = StageCRBM()
+for param_name, param in load_or_fail(core.config.generator_checkpoint_path).items():
+    set_module_tensor_to_device(generator_rbm, param_name, "cpu", value=param)
+generator_rbm = generator_rbm.to(getattr(torch, core.config.dtype)).to(device)
+generator_rbm = core.load_model(generator_rbm, 'generator')
+
+models_rbm = core.Models(
+        effnet=models.effnet, previewer=models.previewer,
+        generator=generator_rbm, generator_ema=models.generator_ema,
+        tokenizer=models.tokenizer, text_model=models.text_model, image_model=models.image_model
+    )
+models_rbm.generator.eval().requires_grad_(False)
+
 def infer(ref_style_file, style_description, caption):
     global models_rbm, models_b, device
     if low_vram:
