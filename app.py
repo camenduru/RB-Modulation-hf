@@ -153,7 +153,7 @@ def reset_inference_state():
 
     # Move necessary models back to the correct device
     if low_vram:
-        models_to(models_rbm, device=device, excepts=["generator", "previewer"])
+        models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
         models_rbm.generator.to(device)
         models_rbm.previewer.to(device)
     else:
@@ -174,10 +174,9 @@ def reset_inference_state():
     torch.cuda.empty_cache()
     gc.collect()
 
-def infer(ref_style_file, style_description, caption):
+def infer(style_description, ref_style_file, caption):
     global models_rbm, models_b
     try:
-        caption = f"{caption} in {style_description}"
         height=1024
         width=1024
         batch_size=1
