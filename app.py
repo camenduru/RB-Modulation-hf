@@ -124,6 +124,8 @@ models_rbm = core.Models(
     )
 models_rbm.generator.eval().requires_grad_(False)
 
+sam_model = LangSAM()
+
 def infer(ref_style_file, style_description, caption):
     global models_rbm, models_b, device
     if low_vram:
@@ -249,7 +251,7 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
         ## SAM Mask for sub
         use_sam_mask = False
         x0_preview = models_rbm.previewer(x0_forward)
-        sam_model = LangSAM()
+        
         sam_mask, boxes, phrases, logits = sam_model.predict(transform(x0_preview[0]), sam_prompt)
         sam_mask = sam_mask.detach().unsqueeze(dim=0).to(device)
         
