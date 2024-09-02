@@ -129,11 +129,7 @@ models_rbm.generator.eval().requires_grad_(False)
 
 
 def infer(ref_style_file, style_description, caption, progress):
-    global models_rbm, models_b, device
-
-    if sam_model:
-        models_to(sam_model, device="cpu")
-        models_to(sam_model.sam, device="cpu")
+    global models_rbm, models_b, device:        
     
     if low_vram:
         models_to(models_rbm, device=device, excepts=["generator", "previewer"])
@@ -363,6 +359,8 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
         return sampled_image  # Return the sampled_image PIL image
 
     finally:
+        models_to(sam_model, device="cpu")
+        models_to(sam_model.sam, device="cpu")
         # Clear CUDA cache
         torch.cuda.empty_cache()
         gc.collect()
