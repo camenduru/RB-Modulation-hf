@@ -205,6 +205,9 @@ def infer(ref_style_file, style_description, caption, progress):
                 sampled_b = sampled_b
             sampled = models_b.stage_a.decode(sampled_b).float()
 
+        torch.cuda.empty_cache()
+        gc.collect()
+        
         progress(0.9, "Finalizing the output image")
         sampled = torch.cat([
             torch.nn.functional.interpolate(ref_style.cpu(), size=(height, width)),
@@ -327,6 +330,9 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
                 sampled_b = sampled_b
             sampled = models_b.stage_a.decode(sampled_b).float()
 
+        torch.cuda.empty_cache()
+        gc.collect()
+        
         progress(0.9, "Finalizing the output image")
         sampled = torch.cat([
             torch.nn.functional.interpolate(ref_images.cpu(), size=(height, width)),
