@@ -337,6 +337,9 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
         # Remove the batch dimension and keep only the generated image
         sampled = sampled[2]  # This selects the generated image, discarding the reference images
 
+        # Ensure the tensor values are in the correct range
+        sampled = torch.clamp(sampled, 0, 1)
+
         # Ensure the tensor is in [C, H, W] format
         if sampled.dim() == 3 and sampled.shape[0] == 3:
             sampled_image = T.ToPILImage()(sampled)  # Convert tensor to PIL image
