@@ -126,10 +126,14 @@ models_rbm = core.Models(
 )
 models_rbm.generator.eval().requires_grad_(False)
 
-sam_model = LangSAM()
+
 
 def infer(ref_style_file, style_description, caption, progress):
     global models_rbm, models_b, device
+
+    if sam_model:
+        models_to(sam_model, device="cpu")
+        models_to(sam_model.sam, device="cpu")
     
     if low_vram:
         models_to(models_rbm, device=device, excepts=["generator", "previewer"])
@@ -237,8 +241,8 @@ def infer(ref_style_file, style_description, caption, progress):
         gc.collect()
 
 def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progress):
-    global models_rbm, models_b, device, sam_model
-    
+    global models_rbm, models_b, device
+    sam_model = LangSAM()
     if low_vram:
         models_to(models_rbm, device=device, excepts=["generator", "previewer"])
         models_to(sam_model, device=device)
@@ -276,7 +280,7 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
         ## SAM Mask for sub
         use_sam_mask = False
         x0_preview = models_rbm.previewer(x0_forward)
-
+        
         x0_preview_pil = T.ToPILImage()(x0_preview[0].cpu())
         sam_mask, boxes, phrases, logits = sam_model.predict(x0_preview_pil, sam_prompt)
         # sam_mask, boxes, phrases, logits = sam_model.predict(transform(x0_preview[0]), sam_prompt)
