@@ -137,7 +137,6 @@ def infer(ref_style_file, style_description, caption, progress):
         height=1024
         width=1024
         batch_size=1
-        output_file='output.png'
         
         stage_c_latent_shape, stage_b_latent_shape = calculate_latent_sizes(height, width, batch_size=batch_size)
 
@@ -221,13 +220,11 @@ def infer(ref_style_file, style_description, caption, progress):
         # Ensure the tensor is in [C, H, W] format
         if sampled.dim() == 3 and sampled.shape[0] == 3:
             sampled_image = T.ToPILImage()(sampled)  # Convert tensor to PIL image
-        #    sampled_image.save(output_file)  # Save the image as a PNG
         else:
             raise ValueError(f"Expected tensor of shape [3, H, W] but got {sampled.shape}")
 
         progress(1.0, "Inference complete")
-        #return output_file  # Return the path to the saved image
-        return sampled_image
+        return sampled_image # Return the sampled_image PIL image
 
     finally:
         # Clear CUDA cache
@@ -342,14 +339,12 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
 
         # Ensure the tensor is in [C, H, W] format
         if sampled.dim() == 3 and sampled.shape[0] == 3:
-            output_file = 'output_compo.png'
             sampled_image = T.ToPILImage()(sampled)  # Convert tensor to PIL image
-            sampled_image.save(output_file)  # Save the image as a PNG
         else:
             raise ValueError(f"Expected tensor of shape [3, H, W] but got {sampled.shape}")
 
         progress(1.0, "Inference complete")
-        return output_file  # Return the path to the saved image
+        return sampled_image  # Return the sampled_image PIL image
 
     finally:
         # Clear CUDA cache
