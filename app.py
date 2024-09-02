@@ -182,7 +182,7 @@ def infer(ref_style_file, style_description, caption, progress):
             lam_style=1, lam_txt_alignment=1.0,
             use_ddim_sampler=True,
         )
-        for (sampled_c, _, _) in progress.tqdm(tqdm(sampling_c, total=extras.sampling_configs['timesteps'])):
+        for (sampled_c, _, _) in progress.tqdm(tqdm(sampling_c, total=extras.sampling_configs['timesteps']), desc="Stage C reverse process"):
         #for i, (sampled_c, _, _) in enumerate(sampling_c, 1):
         #    if i % 5 == 0:  # Update progress every 5 steps
         #        progress(0.4 + 0.3 * (i / extras.sampling_configs['timesteps']), f"Stage C reverse process: step {i}/{extras.sampling_configs['timesteps']}")
@@ -198,9 +198,10 @@ def infer(ref_style_file, style_description, caption, progress):
                 models_b.generator, conditions_b, stage_b_latent_shape,
                 unconditions_b, device=device, **extras_b.sampling_configs,
             )
-            for i, (sampled_b, _, _) in enumerate(sampling_b, 1):
-                if i % 1 == 0:  # Update progress every 1 step
-                    progress(0.7 + 0.2 * (i / extras_b.sampling_configs['timesteps']), f"Stage B reverse process: step {i}/{extras_b.sampling_configs['timesteps']}")
+            for sampled_b, _, _ in progress.tqdm(tqdm(sampling_b, total=extras_b.sampling_configs['timesteps']), desc="Stage B reverse process"):
+            #for i, (sampled_b, _, _) in enumerate(sampling_b, 1):
+            #    if i % 1 == 0:  # Update progress every 1 step
+            #        progress(0.7 + 0.2 * (i / extras_b.sampling_configs['timesteps']), f"Stage B reverse process: step {i}/{extras_b.sampling_configs['timesteps']}")
                 sampled_b = sampled_b
             sampled = models_b.stage_a.decode(sampled_b).float()
 
@@ -299,10 +300,11 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
             sam_mask=sam_mask, use_sam_mask=use_sam_mask,
             sam_prompt=sam_prompt
         )
-        
-        for i, (sampled_c, _, _) in enumerate(sampling_c, 1):
-            if i % 5 == 0:  # Update progress every 5 steps
-                progress(0.4 + 0.3 * (i / extras.sampling_configs['timesteps']), f"Stage C reverse process: step {i}/{extras.sampling_configs['timesteps']}")
+
+        for sampled_c, _, _ in progress.tqdm(tqdm(sampling_c, total=extras.sampling_configs['timesteps']), desc="Stage C reverse process"):
+        #for i, (sampled_c, _, _) in enumerate(sampling_c, 1):
+        #    if i % 5 == 0:  # Update progress every 5 steps
+        #        progress(0.4 + 0.3 * (i / extras.sampling_configs['timesteps']), f"Stage C reverse process: step {i}/{extras.sampling_configs['timesteps']}")
             sampled_c = sampled_c
 
         progress(0.7, "Starting Stage B reverse process")
@@ -315,9 +317,10 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
                 models_b.generator, conditions_b, stage_b_latent_shape,
                 unconditions_b, device=device, **extras_b.sampling_configs,
             )
-            for i, (sampled_b, _, _) in enumerate(sampling_b, 1):
-                if i % 5 == 0:  # Update progress every 5 steps
-                    progress(0.7 + 0.2 * (i / extras_b.sampling_configs['timesteps']), f"Stage B reverse process: step {i}/{extras_b.sampling_configs['timesteps']}")
+            for sampled_b, _, _ in progress.tqdm(tqdm(sampling_b, total=extras_b.sampling_configs['timesteps']), desc="Stage B reverse process"):
+            #for i, (sampled_b, _, _) in enumerate(sampling_b, 1):
+            #    if i % 5 == 0:  # Update progress every 5 steps
+            #        progress(0.7 + 0.2 * (i / extras_b.sampling_configs['timesteps']), f"Stage B reverse process: step {i}/{extras_b.sampling_configs['timesteps']}")
                 sampled_b = sampled_b
             sampled = models_b.stage_a.decode(sampled_b).float()
 
