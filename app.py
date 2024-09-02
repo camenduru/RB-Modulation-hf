@@ -129,6 +129,43 @@ models_rbm = core.Models(
     image_model=models.image_model  # Add this line
 )
 
+def unload_models_and_clear_cache():
+    global models_rbm, models_b, sam_model, extras, extras_b
+    
+    # Reset sampling configurations
+    extras.sampling_configs['cfg'] = 5
+    extras.sampling_configs['shift'] = 1
+    extras.sampling_configs['timesteps'] = 20
+    extras.sampling_configs['t_start'] = 1.0
+
+    extras_b.sampling_configs['cfg'] = 1.1
+    extras_b.sampling_configs['shift'] = 1
+    extras_b.sampling_configs['timesteps'] = 10
+    extras_b.sampling_configs['t_start'] = 1.0
+
+    # Move all models to CPU
+    models_to(models_rbm, device="cpu")
+    models_b.generator.to("cpu")
+    
+    # Move SAM model components to CPU if they exist
+    if 'sam_model' in globals():
+        models_to(sam_model, device="cpu")
+        models_to(sam_model.sam, device="cpu")
+    
+    # Clear CUDA cache
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    # Ensure all models are in eval mode and don't require gradients
+    for model in [models_rbm.generator, models_b.generator]:
+        model.eval()
+        for param in model.parameters():
+            param.requires_grad = False
+
+    # Clear CUDA cache again
+    torch.cuda.empty_cache()
+    gc.collect()
+
 def reset_inference_state():
     global models_rbm, models_b, extras, extras_b, device, core, core_b
     
