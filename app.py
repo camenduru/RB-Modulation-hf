@@ -130,7 +130,7 @@ sam_model = LangSAM()
 def infer(ref_style_file, style_description, caption, progress):
     global models_rbm, models_b, device
     if low_vram:
-        models_to(models_rbm, device=device)
+        models_to(models_rbm, device=device, excepts=["generator", "previewer"])
     try:
         
         caption = f"{caption} in {style_description}"
@@ -167,7 +167,7 @@ def infer(ref_style_file, style_description, caption, progress):
 
         if low_vram:
             # The sampling process uses more vram, so we offload everything except two modules to the cpu.
-            models_to(models_rbm, device="cpu")
+            models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
 
         progress(0.4, "Starting Stage C reverse process")
         # Stage C reverse process.
@@ -234,7 +234,7 @@ def infer(ref_style_file, style_description, caption, progress):
 def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progress):
     global models_rbm, models_b, device, sam_model
     if low_vram:
-        models_to(models_rbm, device=device)
+        models_to(models_rbm, device=device, excepts=["generator", "previewer"])
         models_to(sam_model, device=device)
         models_to(sam_model.sam, device=device)
     try:
@@ -283,7 +283,7 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
         unconditions_b = core_b.get_conditions(batch, models_b, extras_b, is_eval=True, is_unconditional=True)
 
         if low_vram:
-            models_to(models_rbm, device="cpu")
+            models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
             models_to(sam_model, device="cpu")
             models_to(sam_model.sam, device="cpu")
 
