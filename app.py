@@ -182,7 +182,7 @@ def infer(ref_style_file, style_description, caption, progress):
             lam_style=1, lam_txt_alignment=1.0,
             use_ddim_sampler=True,
         )
-        for (sampled_c, _, _) in progress.track(tqdm(sampling_c, total=extras.sampling_configs['timesteps']), description="Stage C reverse process"):
+        for (sampled_c, _, _) in enumerate(tqdm(sampling_c, total=extras.sampling_configs['timesteps']), 1):
             sampled_c = sampled_c
 
         progress(0.7, "Starting Stage B reverse process")
@@ -195,7 +195,7 @@ def infer(ref_style_file, style_description, caption, progress):
                 models_b.generator, conditions_b, stage_b_latent_shape,
                 unconditions_b, device=device, **extras_b.sampling_configs,
             )
-            for (sampled_b, _, _) in progress.track(tqdm(sampling_b, total=extras_b.sampling_configs['timesteps']), description="Stage B reverse process"):
+            for (sampled_b, _, _) in enumerate(tqdm(sampling_b, total=extras_b.sampling_configs['timesteps']), 1):
                 sampled_b = sampled_b
             sampled = models_b.stage_a.decode(sampled_b).float()
 
