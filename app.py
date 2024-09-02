@@ -106,65 +106,10 @@ models_b = WurstCoreB.Models(
 )
 models_b.generator.bfloat16().eval().requires_grad_(False)
 
-# Off-load old generator (low VRAM mode)
-if low_vram:
-    models.generator.to("cpu")
-    torch.cuda.empty_cache()
-
-# Load and configure new generator
-generator_rbm = StageCRBM()
-for param_name, param in load_or_fail(core.config.generator_checkpoint_path).items():
-    set_module_tensor_to_device(generator_rbm, param_name, "cpu", value=param)
-
-generator_rbm = generator_rbm.to(getattr(torch, core.config.dtype)).to(device)
-generator_rbm = core.load_model(generator_rbm, 'generator')
-
-# Create models_rbm instance
-models_rbm = core.Models(
-    effnet=models.effnet,
-    text_model=models.text_model,
-    tokenizer=models.tokenizer,
-    generator=generator_rbm,
-    previewer=models.previewer,
-    image_model=models.image_model  # Add this line
-)
-
-def unload_models_and_clear_cache():
-    global models_rbm, models_b, sam_model, extras, extras_b
-
-    # Move all models to CPU
-    models_to(models_rbm, device="cpu")
-    
-    # Move SAM model components to CPU if they exist
-    if 'sam_model' in globals():
-        models_to(sam_model, device="cpu")
-        models_to(sam_model.sam, device="cpu")
-    
-    # Clear CUDA cache
-    torch.cuda.empty_cache()
-    gc.collect()
-
-    # Ensure all models are in eval mode and don't require gradients
-    for model in [models_rbm.generator, models_b.generator]:
-        model.eval()
-        for param in model.parameters():
-            param.requires_grad = False
-
-    # Clear CUDA cache again
-    torch.cuda.empty_cache()
-    gc.collect()
-
-def reset_inference_state():
-    global models_rbm, models_b, extras, extras_b, device, core, core_b
-
-    # Clear CUDA cache
-    torch.cuda.empty_cache()
-    gc.collect()
-
-    models_to(models_rbm, device=device, excepts=["generator", "previewer"]) 
-
 def infer(ref_style_file, style_description, caption):
-    global models_rbm, models_b
+    global models_rbm, models_b, device
+    if low_vram:
+        models_to(models_rbm, device=device)
     try:
         caption = f"{caption} in {style_description}"
         height=1024
@@ -189,7 +134,7 @@ def infer(ref_style_file, style_description, caption):
         batch = {'captions': [caption] * batch_size}
         batch['style'] = ref_style
 
-        x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style))
+        x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style.to(device)))
 
         conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_style=True, eval_csd=False) 
         unconditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=True, eval_image_embeds=False)    
@@ -246,85 +191,48 @@ def infer(ref_style_file, style_description, caption):
         return output_file  # Return the path to the saved image
 
     finally:
-        # Reset the state after inference, regardless of success or failure
-        reset_inference_state()
-        # Unload models and clear cache after inference
-        # unload_models_and_clear_cache()
-
-def reset_compo_inference_state():
-    global models_rbm, models_b, extras, extras_b, device, core, core_b, sam_model
-    
-    # Reset sampling configurations
-    extras.sampling_configs['cfg'] = 4
-    extras.sampling_configs['shift'] = 2
-    extras.sampling_configs['timesteps'] = 20
-    extras.sampling_configs['t_start'] = 1.0
-
-    extras_b.sampling_configs['cfg'] = 1.1
-    extras_b.sampling_configs['shift'] = 1
-    extras_b.sampling_configs['timesteps'] = 10
-    extras_b.sampling_configs['t_start'] = 1.0
-
-    # Move models to CPU to free up GPU memory
-    models_to(models_rbm, device="cpu")
-    models_b.generator.to("cpu")
-
-    # Clear CUDA cache
-    torch.cuda.empty_cache()
-    gc.collect()
-
-    # Move SAM model components to CPU if they exist
-    models_to(sam_model, device="cpu")
-    models_to(sam_model.sam, device="cpu")
-    
-    # Clear CUDA cache
-    torch.cuda.empty_cache()
-    gc.collect()
-
-    # Ensure all models are in eval mode and don't require gradients
-    for model in [models_rbm.generator, models_b.generator]:
-        model.eval()
-        for param in model.parameters():
-            param.requires_grad = False
-
-    # Clear CUDA cache again
-    torch.cuda.empty_cache()
-    gc.collect()
+        # Clear CUDA cache
+        torch.cuda.empty_cache()
 
 def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
     global models_rbm, models_b, device, sam_model
+    if low_vram:
+        models_to(models_rbm, device=device)
+        models_to(sam_model, device=device)
+        models_to(sam_model.sam, device=device)
     try:
         caption = f"{caption} in {style_description}"
         sam_prompt = f"{caption}"
         use_sam_mask = False
-
-        # Ensure all models are on the correct device
-        models_to(models_rbm, device)
-        models_b.generator.to(device)
         
         batch_size = 1
         height, width = 1024, 1024
         stage_c_latent_shape, stage_b_latent_shape = calculate_latent_sizes(height, width, batch_size=batch_size)
-        
+
+        extras.sampling_configs['cfg'] = 4
+        extras.sampling_configs['shift'] = 2
+        extras.sampling_configs['timesteps'] = 20
+        extras.sampling_configs['t_start'] = 1.0
+        extras_b.sampling_configs['cfg'] = 1.1
+        extras_b.sampling_configs['shift'] = 1
+        extras_b.sampling_configs['timesteps'] = 10
+        extras_b.sampling_configs['t_start'] = 1.0
+
         ref_style = resize_image(PIL.Image.open(ref_style_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
         ref_images = resize_image(PIL.Image.open(ref_sub_file).convert("RGB")).unsqueeze(0).expand(batch_size, -1, -1, -1).to(device)
         
-        batch = {'captions': [caption] * batch_size, 'style': ref_style, 'images': ref_images}
+        batch = {'captions': [caption] * batch_size}
+        batch['style'] = ref_style
+        batch['images'] = ref_images
         
-        x0_forward = models_rbm.effnet(extras.effnet_preprocess(ref_images))
-        x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style))
+        x0_forward = models_rbm.effnet(extras.effnet_preprocess(ref_images.to(device)))
+        x0_style_forward = models_rbm.effnet(extras.effnet_preprocess(ref_style.to(device)))
         
         ## SAM Mask for sub
         use_sam_mask = False
         x0_preview = models_rbm.previewer(x0_forward)
         sam_model = LangSAM()
-        
-        # Move SAM model components to the correct device
-        models_to(sam_model, device)
-        models_to(sam_model.sam, device)
-        
-        x0_preview_pil = T.ToPILImage()(x0_preview[0].cpu())
-        sam_mask, boxes, phrases, logits = sam_model.predict(x0_preview_pil, sam_prompt)
+        sam_mask, boxes, phrases, logits = sam_model.predict(transform(x0_preview[0]), sam_prompt)
         sam_mask = sam_mask.detach().unsqueeze(dim=0).to(device)
         
         conditions = core.get_conditions(batch, models_rbm, extras, is_eval=True, is_unconditional=False, eval_image_embeds=True, eval_subject_style=True, eval_csd=False)
@@ -389,11 +297,8 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
         return output_file  # Return the path to the saved image
 
     finally:
-        # Reset the state after inference, regardless of success or failure
-        # reset_compo_inference_state()
-        # reset_inference_state()
-        # Unload models and clear cache after inference
-        unload_models_and_clear_cache()
+        # Clear CUDA cache
+        torch.cuda.empty_cache()
 
 def run(style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref):
     result = None
