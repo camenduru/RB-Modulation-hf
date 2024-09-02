@@ -377,7 +377,7 @@ def show_hide_subject_image_component(use_subject_ref):
 
 import gradio as gr
 
-with gr.Blocks() as demo:
+with gr.Blocks(analytics_enabled=False) as demo:
     with gr.Column():
         gr.Markdown("# RB-Modulation")
         gr.Markdown("## Training-Free Personalization of Diffusion Models using Stochastic Optimal Control")
