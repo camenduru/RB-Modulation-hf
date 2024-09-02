@@ -153,7 +153,7 @@ def reset_inference_state():
 
     # Move necessary models back to the correct device
     if low_vram:
-        models_to(models_rbm, device="cpu", excepts=["generator", "previewer"])
+        models_to(models_rbm, device=device, excepts=["generator", "previewer"])
         models_rbm.generator.to(device)
         models_rbm.previewer.to(device)
     else:
