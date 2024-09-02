@@ -428,7 +428,7 @@ with gr.Blocks(analytics_enabled=False) as demo:
                     fn=run,
                     inputs=[style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref],
                     outputs=[output_image],
-                    cache_examples=True
+                    cache_examples=False
                 
                 )
 
