@@ -413,6 +413,7 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file):
     finally:
         # Reset the state after inference, regardless of success or failure
         reset_compo_inference_state()
+        reset_inference_state()
 
 def run(style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref):
     result = None
