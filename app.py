@@ -55,6 +55,7 @@ def models_to(model, device="cpu", excepts=None):
             attr_value.to(device)
     
     torch.cuda.empty_cache()
+    gc.collect()
 
 # Stage C model configuration
 config_file = 'third_party/StableCascade/configs/inference/stage_c_3b.yaml'
@@ -214,19 +215,24 @@ def infer(ref_style_file, style_description, caption, progress):
         # Remove the batch dimension and keep only the generated image
         sampled = sampled[1]  # This selects the generated image, discarding the reference style image
 
+        # Ensure the tensor values are in the correct range
+        sampled = torch.clamp(sampled, 0, 1)
+
         # Ensure the tensor is in [C, H, W] format
         if sampled.dim() == 3 and sampled.shape[0] == 3:
             sampled_image = T.ToPILImage()(sampled)  # Convert tensor to PIL image
-            sampled_image.save(output_file)  # Save the image as a PNG
+        #    sampled_image.save(output_file)  # Save the image as a PNG
         else:
             raise ValueError(f"Expected tensor of shape [3, H, W] but got {sampled.shape}")
 
         progress(1.0, "Inference complete")
-        return output_file  # Return the path to the saved image
+        #return output_file  # Return the path to the saved image
+        return sampled_image
 
     finally:
         # Clear CUDA cache
         torch.cuda.empty_cache()
+        gc.collect()
 
 def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progress):
     global models_rbm, models_b, device, sam_model
@@ -348,6 +354,7 @@ def infer_compo(style_description, ref_style_file, caption, ref_sub_file, progre
     finally:
         # Clear CUDA cache
         torch.cuda.empty_cache()
+        gc.collect()
 
 def run(style_reference_image, style_description, subject_prompt, subject_reference, use_subject_ref):
     result = None
